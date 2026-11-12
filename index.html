@@ -646,7 +646,8 @@ function pickSupport(i){
 // 抽選で発動するスキル（「ごくまれに」など、抽選の確率が50%未満）
 // 検索：ひらがな・カタカナを区別せずに探す（カタカナをひらがなにそろえる）。漢字の名前は READ_EXTRA の読みでも引けるようにする
 const kanaKey=t=>String(t||"").replace(/[\u30a1-\u30f6]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/ー/g,"ー").toLowerCase();
-const READ_EXTRA={};
+const READ_EXTRA={"吾妻":"あづま","駿川たづな":"はやかわたづな","保科健子":"ほしなきよこ","秋川理事長":"あきかわりじちょう","都留岐涼花":"つるぎりょうか","佐岳メイ":"さたけめい","安心沢刺々美":"あんしんざわささみ","樫本理子":"かしもとりこ","桐生院葵":"きりゅういんあおい",
+  "伝説の体現者":"でんせつのたいげんしゃ","刻み続ける者たち":"きざみつづけるものたち","祖にして導く者":"そにしてみちびくもの","玉座に集いし者たち":"ぎょくざにつどいしものたち"};
 const isLottery=s=>(s.ep||[]).some(q=>(q.conditions||[]).some(g=>["random_lot","random_lot_shared"].some(k=>(g[k]||[]).some(c=>Number(c.value)<50))));
 const mOf=(s,r)=>(S.randAccelSafe&&s.effect==="accel"&&r.random&&r.q25!=null)?r.q25:r.mean;
 // スキル判定の段階：プランごとに、入手できるスキルでいちばん伸びるもの（TH.best）を基準に、
