@@ -224,6 +224,7 @@
           if (f) { if ((f[STYLE_NAMES[ctx.style]] || 0) > 0) return null; } else unknown.push(key);
         }
         else if (key === "finalCorner" && ctx.finalCorner) lim([[ctx.finalCorner[0], D]]);
+        else if (key === "corner") lim(ctx.corners.map(([a, b]) => [a, b]));
         else unknown.push(key);
         if (!region.length) return null;
         continue;
@@ -267,6 +268,7 @@
             else if (sign === "==" && v === 0) lim(complement(ctx.corners.map(([a, b]) => [a, b]), D));
             else if (sign === "==") lim(ctx.corners.filter((c) => c[2] === v).map(([a, b]) => [a, b]));
             break;
+          case "notSpecifiedCorner": lim(complement(ctx.corners.filter((c) => c[2] === v).map(([a, b]) => [a, b]), D)); break;
           case "corner_count": if (!cmp(ctx.corners.length, sign, v)) return null; break;
           case "is_dirtgrade": if (cmp(ctx.course.surface === "ダート" ? 1 : 0, sign, v) === false) return null; break;
           case "straight_random": lim(ctx.straights); random = true; break;
@@ -527,8 +529,13 @@
       if (startDash && v >= 0.85 * V0) startDash = false;
       let a;
       if (v < target) {
-        a = (slope > 0 ? accUp : accBase) * STRAT_ACCEL[style][Math.min(phase, 2)] + accSkill + (startDash ? 24 : 0);
-        v = Math.min(target, v + a * DT);
+        const aN = (slope > 0 ? accUp : accBase) * STRAT_ACCEL[style][Math.min(phase, 2)] + accSkill;
+        a = aN + (startDash ? 24 : 0);
+        let vn = v + a * DT;
+        // スタートダッシュは0.85×基準速度に届いた時点で終わる。刻みの途中で届いたら、残りの時間は通常の加速にする
+        // （刻み幅のせいで終了時の速度が最大1.6m/sぶれ、パワーなどのわずかな差でタイムが大きく飛ぶのを防ぐ）
+        if (startDash && vn > 0.85 * V0) { const tt = Math.max(0, (0.85 * V0 - v) / a); vn = 0.85 * V0 + aN * (DT - tt); startDash = false; }
+        v = Math.min(target, vn);
       } else if (v > target) {
         v = Math.max(target, v + DECEL[phase] * DT);
       }

@@ -695,6 +695,9 @@ const READ_EXTRA={"吾妻":"あづま","駿川たづな":"はやかわたづな"
   "伝説の体現者":"でんせつのたいげんしゃ","刻み続ける者たち":"きざみつづけるものたち","祖にして導く者":"そにしてみちびくもの","玉座に集いし者たち":"ぎょくざにつどいしものたち"};
 // 表示用のレアリティ：進化スキル（rarityRaw 6）は「evo」として、金・固有と色を分ける
 const rcls=s=>s.rarityRaw===6?"evo":s.rarity;
+// 1人走行では判定できない状況次第の条件（scripts/check-skills.mjs の SITUATIONAL と対応）。人気は別に表示する
+const situLabel=k=>/^(hp_per)/.test(k)?"残り体力":/^(activate_count|is_activate|is_used_skill)/.test(k)?"ほかのスキルの発動":/^(compete_fight)/.test(k)?"競り合い":/^(is_move_lane|lane_type|.*_lane_)/.test(k)?"進路":/(temptation|isNoTemptation)/i.test(k)?"掛かり":/^(is_other_character|bashin_diff|near_|is_surrounded|blocked|overtake|is_overtake|is_behind|distance_diff_rate)/.test(k)?"相手との位置関係":/^(change_order|order_rate_.*continue)/.test(k)?"順位の変動":/^(running_style_count|nobody|same_skill_horse|is_exist_chara|is_exist_skill)/.test(k)?"出走メンバー":/^(is_badstart|is_goodstart)/.test(k)?"スタート":/^(motivation)/.test(k)?"やる気":null;
+const situLabels=r=>r&&r.ok?[...new Set((r.unknown||[]).map(situLabel).filter(Boolean))]:[];
 const isLottery=s=>(s.ep||[]).some(q=>(q.conditions||[]).some(g=>["random_lot","random_lot_shared"].some(k=>(g[k]||[]).some(c=>Number(c.value)<50))));
 const mOf=(s,r)=>(S.randAccelSafe&&s.effect==="accel"&&r.random&&r.q25!=null)?r.q25:r.mean;
 // スキル判定の段階：プランごとに、入手できるスキルでいちばん伸びるもの（TH.best）を基準に、
@@ -1201,6 +1204,7 @@ function skRow(x){
   if(x.statPassive&&S.passSpdOnly&&x.route&&x.route.kind==="inh")meta.push("スピード以外のステータス上昇のため因子化の候補外");
   if(x.field)meta.push("出走メンバー次第（期待値は半分で計算）");
   if(x.r.ok&&(x.r.unknown||[]).some(k=>/^popularity/.test(k)))meta.push("人気が条件（想定人気が未定のため満たす前提で計算）");
+  {const sit=situLabels(x.r).filter(l=>!(x.field&&l==="出走メンバー"));if(sit.length)meta.push("状況次第の条件あり："+sit.join("・")+"（1人走行では判定できないため、満たす前提で計算）")}
   if(S.randAccelSafe&&x.s.effect==="accel"&&x.r.ok&&x.r.random)meta.push("ランダム位置の加速のため下位25%の結果で評価");
   if(x.r.ok&&(x.r.posKeys||[]).includes("post_number"))meta.push("枠番はくじ引きの確率で計算");
   if(x.r.ok&&x.r.prob<0.995)meta.push((x.r.posKeys&&x.r.posKeys.length?"順位・位置条件の成立率":"発動確率")+`約${Math.round(x.r.prob*100)}%込み`);
