@@ -1,0 +1,1234 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#7bc843">
+</head>
+<body>
+<title>ウマ娘 育成プランナー</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
+<style>
+/* Layout: ゲーム画面風。緑のアプリバー、白い角丸パネル、ゲーム風のタブと押し込みボタン。明るい単一テーマで統一。 */
+:root{
+  color-scheme:light;
+  --bg:#eaf6e2; --panel:#ffffff; --sunk:#f3f7f0; --ink:#4a3f37; --muted:#8a7f76; --line:#dfe6d8;
+  --green:#7bc843; --green-d:#4f9a22; --green-dd:#3c7a17; --green-soft:#eef8e6;
+  --pink:#f3729f; --pink-soft:#fde8f0;
+  --gold1:#fff1b8; --gold2:#f7cf52; --gold-ink:#7a5600;
+  --must:#f0544f; --rec:#4f9a22; --opt:#e89a1a; --none:#a9a29b;
+  --c-spd:#3b9bf0; --c-sta:#f0603f; --c-pow:#f5a524; --c-gut:#f26aa0; --c-wit:#35b673;
+  --e-speed:#f5a524; --e-accel:#f0544f; --e-heal:#35b6c8; --e-stat:#7bc843; --e-forward:#a77fd9; --e-other:#9aa0a6;
+  --f:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+  --r:16px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--bg)}
+body{background:var(--bg);background-image:repeating-linear-gradient(135deg,transparent 0 18px,rgba(255,255,255,.35) 18px 36px);color:var(--ink);font-family:var(--f);font-weight:500;font-size:15px;line-height:1.6;margin:0;padding-block:0 56px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--green)}
+.in{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.appbar{background:linear-gradient(180deg,#8fd657,var(--green));border-bottom:4px solid var(--green-d);color:#fff}
+.appbar .in{padding-block:14px 12px;display:flex;align-items:center;gap:12px}
+.appbar .badge{width:40px;height:40px;border-radius:12px;background:#fff;display:grid;place-items:center;box-shadow:0 3px 0 var(--green-dd);flex:0 0 auto}
+h1{font-weight:800;font-size:21px;line-height:1.2;margin:0;text-shadow:0 2px 0 var(--green-d);text-wrap:balance}
+.appbar p{margin:0;font-size:12px;opacity:.95}
+.banner{margin:12px 0 0;padding:8px 12px;border-radius:12px;background:#fff;border:2px dashed var(--line);font-size:12px;color:var(--muted)}
+.banner.err{background:#fff0ee;border-color:var(--must);color:var(--must)}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;padding-block:10px;background:linear-gradient(var(--bg) 70%,transparent)}
+.tabtrack{display:flex;gap:4px;background:#fff;border-radius:999px;padding:4px;box-shadow:0 2px 0 var(--line);overflow-x:auto;scrollbar-width:none}
+.tabtrack::-webkit-scrollbar{display:none}
+.tab{flex:1 0 auto;border:0;background:transparent;font:inherit;font-weight:700;font-size:13.5px;color:var(--muted);border-radius:999px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+.tab .no{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--sunk);font-size:11px;margin-right:4px;vertical-align:1px}
+.tab[aria-current="true"]{background:var(--green);color:#fff;box-shadow:inset 0 -3px 0 var(--green-d)}
+.tab[aria-current="true"] .no{background:rgba(255,255,255,.3)}
+:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+section.panel{display:grid;gap:14px;padding-block:4px}
+.card{background:var(--panel);border-radius:var(--r);box-shadow:0 3px 0 var(--line);overflow:hidden;min-width:0}
+.card-h{display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(90deg,var(--green-soft),#fff);border-bottom:2px solid var(--line)}
+.card-h h2{font-size:16px;font-weight:800;margin:0}
+.card-h .mk{width:6px;height:18px;border-radius:3px;background:var(--green)}
+.card-b{padding:14px;display:grid;gap:12px}
+.lbl{font-size:12px;font-weight:700;color:var(--muted);margin:0 0 4px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+label.f{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted);min-width:0}
+select,input{font:inherit;font-weight:700;font-size:15px;color:var(--ink);background:var(--sunk);border:2px solid var(--line);border-radius:12px;padding:8px 10px;width:100%;min-width:0}
+select:focus,input:focus{border-color:var(--green);outline:none}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{font:inherit;font-weight:700;font-size:14px;border:2px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--pink);border-color:var(--pink);color:#fff;box-shadow:inset 0 -3px 0 #d4517f}
+.seg.sm button{font-size:12.5px;padding:4px 10px}
+.facts{display:flex;flex-wrap:wrap;gap:6px}
+.fact{background:var(--sunk);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted)}
+.fact b{color:var(--ink)}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap}
+.btn{font:inherit;font-weight:800;font-size:15px;border-radius:999px;padding:10px 20px;cursor:pointer;border:2px solid var(--green);background:#fff;color:var(--green-d);box-shadow:0 4px 0 var(--green-d);transition:transform .05s,box-shadow .05s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--green-d)}
+.btn.primary{background:linear-gradient(180deg,#93d95e,var(--green));color:#fff;border-color:var(--green-d);text-shadow:0 1px 0 var(--green-d)}
+.btn.sm{font-size:13px;padding:5px 12px;box-shadow:0 3px 0 var(--green-d)}
+.btn:disabled{opacity:.5}
+.btnrow .grow{flex:1 1 auto}
+/* picker */
+.pick{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font:inherit;background:var(--sunk);border:2px solid var(--line);border-radius:12px;padding:8px 10px;cursor:pointer;color:var(--ink)}
+.pick .t{font-size:11.5px;color:var(--muted);display:block;line-height:1.3}
+.pick .n{font-weight:800;display:block;line-height:1.35}
+.pick .chev{margin-left:auto;color:var(--muted)}
+.presets{display:grid;gap:6px}
+.preset{display:grid;gap:1px;text-align:left;font:inherit;background:#fff;border:2px solid var(--line);border-radius:12px;padding:7px 12px;cursor:pointer;color:var(--ink)}
+.preset b{font-size:14.5px}
+.preset small{font-size:11.5px;color:var(--muted)}
+.preset[aria-pressed="true"]{border-color:var(--green);background:var(--green-soft)}
+.pick>span:first-child{min-width:0;flex:1 1 auto}
+.pick .chg{margin-left:auto;flex:0 0 auto;white-space:nowrap;font-size:12.5px;font-weight:700;color:var(--green-d);background:#fff;border:2px solid var(--line);border-radius:999px;padding:2px 10px;line-height:1.4}
+.sheet-bg{position:fixed;inset:0;background:rgba(40,30,20,.35);z-index:30;display:flex;align-items:stretch;justify-content:center}
+/* 検索欄を画面上部に固定し、キーボードが出ても候補が隠れないようにする */
+.sheet{background:#fff;width:100%;max-width:760px;height:100%;display:flex;flex-direction:column;padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));gap:10px}
+.sheet .list{flex:1 1 auto;align-content:start}
+.sheet h3{margin:0;font-size:16px;font-weight:800}
+.sheet .list{overflow-y:auto;display:grid;gap:6px;min-height:0}
+.opt{display:flex;align-items:center;gap:8px;text-align:left;font:inherit;background:var(--sunk);border:2px solid transparent;border-radius:12px;padding:8px 10px;cursor:pointer;color:var(--ink)}
+.opt:hover{border-color:var(--green)}
+.opt .t{font-size:11.5px;color:var(--muted);display:block}
+.opt .n{font-weight:800;display:block}
+/* aptitude */
+.aptgrid{display:grid;gap:8px}
+.aptrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.aptrow .k{width:40px;font-size:12px;font-weight:800;color:var(--muted)}
+.apt{display:inline-flex;align-items:center;gap:5px;background:var(--sunk);border-radius:8px;padding:2px 8px 2px 4px;font-size:12.5px;font-weight:700;border:2px solid transparent}
+.apt.on{border-color:var(--pink);background:var(--pink-soft)}
+.rk{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;color:#fff;font-weight:800;font-size:14px;text-shadow:0 1px 0 rgba(0,0,0,.18);flex:0 0 auto}
+.rk-S{background:linear-gradient(180deg,#ffd84a,#f2a900)}.rk-A{background:#ff8a1c}.rk-B{background:#f2659b}.rk-C{background:#5ac85a}.rk-D{background:#4fb4e6}.rk-E{background:#a77fd9}.rk-F{background:#7f95b5}.rk-G{background:#a5a5a5}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.stat{display:grid;gap:0;min-width:0}
+.stat .nm{font-size:11.5px;font-weight:800;color:#fff;text-align:center;border-radius:8px 8px 0 0;padding:3px 0}
+.stat input{border-radius:0 0 10px 10px;text-align:center;padding:8px 2px;font-size:16px;font-variant-numeric:tabular-nums}
+.stat .val{background:var(--sunk);border-radius:0 0 10px 10px;text-align:center;font-weight:800;padding:4px 0;font-variant-numeric:tabular-nums}
+@media (max-width:420px){.stat .nm{font-size:10.5px}.stat input{font-size:14px}}
+.deck{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.slot{border-radius:14px;border:2px solid var(--line);background:#fff;padding:10px;display:grid;gap:6px;min-width:0;align-content:start}
+.slot>*{align-self:start;min-width:0}
+.slot .top .type{white-space:nowrap;flex:0 0 auto}
+.slot .top .xbtn{margin-left:auto;flex:0 0 auto;width:28px;height:28px;border-radius:50%;border:2px solid var(--line);background:#fff;color:var(--muted);font:inherit;font-weight:800;font-size:13px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
+.slot .pick .t,.slot .pick .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot .top{display:flex;align-items:center;gap:6px;min-width:0}
+.slot .no{width:26px;height:26px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px;flex:0 0 auto}
+.slot.friend .no{background:var(--pink)}
+.type{font-size:11px;font-weight:800;color:#fff;border-radius:6px;padding:1px 8px}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.sk.conn-sure{outline:3px solid #ff8a1c;outline-offset:-1px}
+.sk.conn-maybe{outline:2px dashed #ffb26b;outline-offset:-1px}
+.sk.conn-sure .nm::after,.sk.conn-maybe .nm::after{content:attr(data-conn);margin-left:6px;font-size:11px;font-weight:800;border-radius:999px;padding:1px 7px;vertical-align:2px;white-space:nowrap}
+.sk.conn-sure .nm::after{color:#fff;background:#ff8a1c}
+.sk.conn-maybe .nm::after{color:#c25e00;background:#fff;border:1.5px solid #ffb26b}
+.clist li{align-items:center}.clist li>span:last-child{flex:0 0 auto;text-align:right;white-space:nowrap;font-size:12.5px}
+.cbadge{display:inline-block;font-size:11px;font-weight:800;border-radius:999px;padding:0 7px;margin-right:4px;white-space:nowrap}
+.cbadge.sure{color:#fff;background:#ff8a1c}.cbadge.maybe{color:#c25e00;border:1.5px solid #ffb26b}
+.chip.gold{background:linear-gradient(180deg,var(--gold1),var(--gold2));color:var(--gold-ink)}
+/* progress */
+.progress{display:grid;gap:6px;padding:18px;text-align:center;font-weight:700;color:var(--muted)}
+.bar{height:10px;border-radius:5px;background:#e6e1dc;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#7bc843,#35b673);width:0;transition:width .15s}
+/* sheet */
+#sheet{background:#fff;border-radius:var(--r);box-shadow:0 3px 0 var(--line);overflow:hidden}
+.sh-top{background:linear-gradient(180deg,#8fd657,var(--green));color:#fff;padding:14px 16px 12px;display:grid;gap:4px}
+.sh-top .ev{display:inline-block;justify-self:start;background:#fff;color:var(--green-d);font-weight:800;font-size:12px;border-radius:999px;padding:1px 10px}
+.sh-top h2{margin:0;font-size:19px;font-weight:800;line-height:1.3;text-shadow:0 2px 0 var(--green-d);text-wrap:balance}
+.sh-top p{margin:0;font-size:12px}
+.sh-b{padding:14px 16px 16px;display:grid;gap:16px}
+.ribbon{display:inline-block;justify-self:start;background:var(--pink);color:#fff;font-weight:800;font-size:13.5px;padding:3px 16px 3px 12px;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 50%,100% 100%,0 100%);border-radius:6px 0 0 6px}
+.kpis{display:grid;grid-template-columns:1fr;gap:10px}
+@media (min-width:560px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.kpi{border-radius:14px;background:var(--sunk);padding:10px 12px;display:grid;gap:4px;border:2px solid var(--line);align-content:start}
+.kpi .k{font-size:12px;font-weight:800;color:var(--muted)}
+.kpi .v{font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .v small{font-size:13px;color:var(--muted)}
+.kpi .d{font-size:12px;color:var(--muted)}
+.state{display:inline-block;font-size:11.5px;font-weight:800;padding:1px 8px;border-radius:999px;color:#fff}
+.st-ok{background:var(--rec)}.st-ng{background:var(--must)}.st-warn{background:var(--opt)}
+.hpbar{height:10px;border-radius:5px;background:#e6e1dc;overflow:hidden;display:flex;box-shadow:inset 0 1px 2px rgba(0,0,0,.12)}
+.hpbar i{display:block;height:100%}
+.factor{display:grid;gap:8px}
+.frow{display:grid;grid-template-columns:76px 1fr;gap:10px;align-items:start;font-size:14px}
+.frow > span:last-child{min-width:0}
+.fpill{font-size:12px;font-weight:800;color:#fff;text-align:center;border-radius:999px;padding:2px 0}
+.fp-blue{background:#3b9bf0}.fp-red{background:#f0544f}.fp-white{background:#fff;color:var(--ink);border:2px solid var(--line);padding:0}.fp-uniq{background:linear-gradient(90deg,#f26aa0,#a77fd9,#3b9bf0)}
+.ulist{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.lout li small{display:block;color:var(--muted);font-size:11.5px}
+.ulist li{display:flex;justify-content:space-between;gap:8px;background:var(--sunk);border-radius:8px;padding:4px 8px;font-size:13px}
+.ulist li b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ilist{margin-top:6px}
+.ilist li{padding:0;background:none}
+.ipick{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font:inherit;font-size:13px;background:var(--sunk);border:2px solid transparent;border-radius:10px;padding:6px 8px;cursor:pointer;color:var(--ink)}
+.ipick .tx{flex:1;min-width:0;font-weight:800;line-height:1.35}
+.ipick small{display:block;font-weight:500;color:var(--muted);font-size:11px}
+.ipick b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ipick .ck{width:22px;height:22px;border-radius:6px;border:2px solid var(--line);background:#fff;display:grid;place-items:center;color:#fff;font-weight:800;flex:0 0 auto}
+.ipick.on{border-color:var(--pink);background:var(--pink-soft)}
+.ipick.on .ck{background:var(--pink);border-color:var(--pink)}
+.ipick:disabled{opacity:.45;cursor:default}
+.tier{display:grid;gap:6px}
+.tier-h{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px}
+.tier-h .tg{color:#fff;border-radius:6px;padding:0 10px;font-size:13px}
+.tier-h .n{font-size:12px;color:var(--muted)}
+.sk{display:grid;grid-template-columns:34px 1fr auto;gap:2px 10px;align-items:center;padding:7px 10px 7px 7px;border-radius:12px;background:#fff;border:2px solid var(--line);box-shadow:0 2px 0 var(--line)}
+.sk.r-gold{background:linear-gradient(180deg,var(--gold1),#fde7a0);border-color:#efc75a;box-shadow:0 2px 0 #e0b440}
+.sk.r-unique{background:linear-gradient(#fff,#fff) padding-box,linear-gradient(90deg,#f26aa0,#a77fd9,#3b9bf0,#35b673) border-box;border-color:transparent}
+.ico{grid-row:1/span 2;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;box-shadow:inset 0 -3px 0 rgba(0,0,0,.15)}
+.ico svg{width:20px;height:20px}
+.i-speed{background:var(--e-speed)}.i-accel{background:var(--e-accel)}.i-heal{background:var(--e-heal)}.i-stat{background:var(--e-stat)}.i-forward{background:var(--e-forward)}.i-other,.i-lane{background:var(--e-other)}
+.sk .nm{font-weight:800;font-size:14px;min-width:0;line-height:1.35}
+.sk .sc{grid-row:1/span 2;grid-column:3;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;text-align:right;line-height:1.2}
+.sk .sc small{display:block;font-size:10.5px;color:var(--muted);font-weight:700}
+.sk .ds{grid-column:2;font-size:11.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 8px;min-width:0}
+.src{font-weight:800}
+.src-own{color:var(--green-d)}.src-inh{color:#c47a00}.src-no{color:var(--must)}
+details.na summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--muted)}
+details.sec{display:grid;gap:10px}
+details.sec>summary{list-style:none;display:flex;align-items:center;gap:8px;cursor:pointer}
+details.sec>summary::-webkit-details-marker,details.sub>summary::-webkit-details-marker{display:none}
+details.sec>.sec-b{display:grid;gap:10px;margin-top:10px}
+.chev{width:22px;height:22px;border-radius:50%;background:var(--sunk);display:inline-grid;place-items:center;margin-left:auto;transition:transform .15s}
+.chev::before{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translate(-1px,-1px)}
+details[open]>summary .chev{transform:rotate(180deg)}
+details.sub>summary{list-style:none;cursor:pointer}
+details.sub>.tier{margin-top:6px}
+.facrow{display:grid;grid-template-columns:64px 1fr;gap:8px;align-items:start}
+.ftier{font-size:12px;font-weight:800;color:#fff;text-align:center;border-radius:999px;padding:2px 0}
+.ft-top{background:var(--must)}.ft-high{background:var(--opt)}.ft-norm{background:var(--none)}
+.facrow .chip b{color:var(--ink);font-variant-numeric:tabular-nums}
+.guide{display:grid;gap:8px}
+.gcard{border:2px solid var(--line);border-radius:12px;padding:8px 10px;display:grid;gap:6px}
+.gh{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:14px}
+.gh .hint{font-size:12px}
+.gopt{display:grid;gap:2px;background:var(--sunk);border-radius:8px;padding:6px 8px;font-size:12.5px;border:2px solid transparent}
+.gopt.best{border-color:var(--green);background:var(--green-soft)}
+.gopt .gt{font-weight:800;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.gopt .rec,.ipick .rec{background:var(--green);color:#fff;border-radius:999px;font-size:11px;padding:0 8px;margin-left:6px;font-weight:800}
+.gopt .selp{background:var(--pink);color:#fff;border-radius:999px;font-size:11px;padding:0 8px}
+button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:100%}
+.ftier small{display:block;font-size:10px;font-weight:700;opacity:.9}
+.farm{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.gopt .gs{color:var(--muted)}
+.foot{font-size:11.5px;color:var(--muted);border-top:2px dashed var(--line);padding-top:8px;margin:0}
+#exportOut img{border-radius:12px;margin-top:8px;box-shadow:0 2px 0 var(--line)}
+.saved{display:grid;gap:6px}
+.saved-row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--sunk);border-radius:12px;padding:8px 10px;font-size:14px;font-weight:700}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#fff;padding:8px 16px;border-radius:999px;font-size:13.5px;font-weight:700;z-index:40}
+@media (prefers-reduced-motion:no-preference){.panel{animation:pop .2s ease-out}@keyframes pop{from{transform:translateY(6px);opacity:.5}to{transform:none;opacity:1}}}
+</style>
+
+<header class="appbar"><div class="in">
+  <div class="badge" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4f9a22" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M10 20v-6h4v6"/></svg></div>
+  <div><h1>ウマ娘 育成プランナー</h1><p>レース条件・ウマ娘・デッキから育成方針を1枚にまとめます</p></div>
+</div></header>
+
+<div class="in">
+  <div class="banner" id="dataBanner">データを読み込み中です…</div>
+  <nav class="tabs" aria-label="工程"><div class="tabtrack">
+    <button class="tab" data-step="race" aria-current="true"><span class="no">1</span>レース</button>
+    <button class="tab" data-step="uma"><span class="no">2</span>ウマ娘</button>
+    <button class="tab" data-step="deck"><span class="no">3</span>デッキ</button>
+    <button class="tab" data-step="plan"><span class="no">4</span>プラン</button>
+    <button class="tab" data-step="settings"><span class="no">5</span>設定</button>
+  </div></nav>
+
+  <section class="panel" id="p-race">
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>レース条件</h2></div><div class="card-b">
+      <div id="presetBox" hidden><p class="lbl">これから開催のイベントから一括設定</p><div class="presets" id="presets"></div></div>
+      <div><p class="lbl">イベント</p><div class="seg" id="evSeg"></div></div>
+      <div class="grid2">
+        <label class="f">レース場<select id="track"></select></label>
+        <label class="f">コース<select id="course"></select></label>
+      </div>
+      <div class="facts" id="courseFacts"></div>
+      <div class="grid2">
+        <label class="f">バ場状態<select id="ground"><option>良</option><option>稍重</option><option>重</option><option>不良</option></select></label>
+        <label class="f">天気<select id="weather"><option>晴</option><option>曇</option><option>雨</option><option>雪</option></select></label>
+        <label class="f">季節<select id="season"><option>春</option><option>夏</option><option>秋</option><option>冬</option></select></label>
+      </div>
+      <label class="f">育成シナリオ<select id="scenario"></select></label>
+      <p class="hint" id="scenarioHint"></p>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>出走の想定（任意）</h2></div><div class="card-b">
+      <p class="hint">人気・枠番・他のウマ娘の脚質が条件のスキルは、ここを決めると確定で判定します。未定のときは、人気の条件は満たす前提、枠番はくじ引きの確率、他のウマ娘の脚質は期待値を半分にして扱います。脚質構成は「何番手あたりを走るか」の目安にも使います。未定のときは、チャンミは逃げ2・先行3・差し2・追込1の9人立て、LoHは逃げ2・先行4・差し4・追込1の12人立てを想定します。</p>
+      <div class="grid2">
+        <label class="f">想定人気<select id="fPop"></select></label>
+        <label class="f">想定枠番<select id="fPost"></select></label>
+      </div>
+      <div><p class="lbl">自分以外の脚質構成</p><div class="seg sm" id="fCountsOn"></div></div>
+      <div class="grid2" id="fCounts" hidden>
+        <label class="f">逃げ<input type="number" id="fc-逃げ" min="0" max="17" inputmode="numeric"></label>
+        <label class="f">先行<input type="number" id="fc-先行" min="0" max="17" inputmode="numeric"></label>
+        <label class="f">差し<input type="number" id="fc-差し" min="0" max="17" inputmode="numeric"></label>
+        <label class="f">追込<input type="number" id="fc-追込" min="0" max="17" inputmode="numeric"></label>
+      </div>
+    </div></div>
+    <div class="btnrow"><button class="btn primary grow" data-go="uma">次へ</button></div>
+  </section>
+
+  <section class="panel" id="p-uma" hidden>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>育成ウマ娘</h2></div><div class="card-b">
+      <button class="pick" id="charaPick" type="button"></button>
+      <div><p class="lbl">脚質</p><div class="seg" id="styleSeg"></div></div>
+      <div><p class="lbl">初期適性（このレースで使う適性を強調表示）</p><div class="aptgrid" id="aptGrid"></div></div>
+      <div class="grid2">
+        <label class="f">距離適性（因子込み）<select id="aptDist"></select></label>
+        <label class="f">バ場適性（因子込み）<select id="aptSurf"></select></label>
+        <label class="f">脚質適性（因子込み）<select id="aptStyle"></select></label>
+      </div>
+      <p class="hint">赤因子で適性を上げる予定なら、上げた後の値を選んでください。</p>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>目標ステータス</h2></div><div class="card-b">
+      <div class="stats">
+        <label class="stat"><span class="nm" style="background:var(--c-spd)">スピード</span><input type="number" id="st-spd" inputmode="numeric" min="1" max="2500"></label>
+        <label class="stat"><span class="nm" style="background:var(--c-sta)">スタミナ</span><input type="number" id="st-sta" inputmode="numeric" min="1" max="2500"></label>
+        <label class="stat"><span class="nm" style="background:var(--c-pow)">パワー</span><input type="number" id="st-pow" inputmode="numeric" min="1" max="2500"></label>
+        <label class="stat"><span class="nm" style="background:var(--c-gut)">根性</span><input type="number" id="st-gut" inputmode="numeric" min="1" max="2500"></label>
+        <label class="stat"><span class="nm" style="background:var(--c-wit)">賢さ</span><input type="number" id="st-wit" inputmode="numeric" min="1" max="2500"></label>
+      </div>
+      <div class="btnrow"><button type="button" class="btn sm" id="btnCaps">シナリオの上限を入れる</button></div>
+      <label class="f">やる気<select id="mood"><option>絶好調</option><option>好調</option><option>普通</option><option>不調</option><option>絶不調</option></select></label>
+      <label class="f">スキルに使えるSP（目安）<input type="number" id="spBudget" inputmode="numeric" min="0" step="50"></label>
+      <p class="hint">完成時に想定するステータスです。獲得バ身とスタミナの計算に使います。SPは「おすすめのスキル構成」を予算内で組むのに使います。</p>
+    </div></div>
+    <div class="btnrow"><button class="btn" data-go="race">戻る</button><button class="btn primary grow" data-go="deck">次へ</button></div>
+  </section>
+
+  <section class="panel" id="p-deck" hidden>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>サポートカード編成</h2></div><div class="card-b">
+      <p class="hint">枠をタップしてカードを選びます。6枠目はフレンド枠です。</p>
+      <div class="deck" id="deckSlots"></div>
+    </div></div>
+    <div class="btnrow"><button class="btn" data-go="uma">戻る</button><button class="btn primary grow" data-go="plan">プランを作成</button></div>
+  </section>
+
+  <section class="panel" id="p-plan" hidden>
+    <div id="sheet"></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>保存</h2></div><div class="card-b">
+      <div class="btnrow"><button class="btn primary grow" id="btnPng">画像で保存</button><button class="btn grow" id="btnPdf">PDFで保存</button></div>
+      <p class="hint" id="exportMsg">保存できない環境では、ここに画像を表示します。長押しで端末に保存できます。</p>
+      <div id="exportOut"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>プランの控え</h2></div><div class="card-b">
+      <div class="btnrow" style="align-items:end">
+        <label class="f" style="flex:1 1 200px">名前<input id="planName" placeholder="例：12月チャンミ 差し"></label>
+        <button class="btn" id="btnSavePlan">控える</button>
+      </div>
+      <div class="saved" id="savedList"></div>
+      <p class="hint">控えはこの端末のブラウザにだけ残ります。</p>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>プランを共有</h2></div><div class="card-b">
+      <p class="hint">今のプラン（レース条件・育成ウマ娘・ステータス・デッキ・継承固有・イベントの選択）を共有コードにします。受け取った人は、下の欄に貼り付けて開けます。</p>
+      <div class="btnrow"><button class="btn primary grow" id="btnShare">共有コードをコピー</button></div>
+      <textarea id="shareOut" rows="3" readonly hidden style="width:100%;font:inherit;font-size:12px;border:2px solid var(--line);border-radius:12px;padding:8px;background:var(--sunk);color:var(--ink)"></textarea>
+      <label class="f">共有コードから開く<textarea id="shareIn" rows="3" placeholder="UMAPLAN1:… を貼り付け" style="width:100%;font:inherit;font-size:12px;border:2px solid var(--line);border-radius:12px;padding:8px;background:var(--sunk);color:var(--ink)"></textarea></label>
+      <div class="btnrow"><button class="btn grow" id="btnShareOpen">このコードのプランを開く</button></div>
+    </div></div>
+  </section>
+
+  <section class="panel" id="p-settings" hidden>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>判定の基準</h2></div><div class="card-b">
+      <p class="hint">期待バ身（獲得バ身×発動率）で振り分けます。</p>
+      <div class="grid2" id="coefInputs"></div>
+      <div class="btnrow"><button class="btn" id="btnResetS">初期値に戻す</button></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>位置取りによる体力消費</h2></div><div class="card-b">
+      <p class="hint">位置取り争い（逃げ同士、150m地点から根性で決まる時間、消費1.4倍）は公開資料の式で計算します。リード確保（区間11〜15、2秒ごとに20%で発動）は、脚質係数（逃げ1.0・先行0.8・差し0.8）と距離係数を掛けますが、1回あたりの消費の基準値は式が公開されていないため、下の値を仮に使います。ポジションキープなどそのほかの位置取りの消費は、序盤〜中盤の消費に脚質ごとの割合で上乗せします。初期値（基準値35・上乗せ17%）は、神ゲー攻略の2026年7月チャンミ（中山3600m）の目標値（スタミナ1700で、先行は金回復2個＋白回復2個、追込は金回復1個＋白回復3個）に合うように合わせた仮の値です。</p>
+      <div class="grid2">
+        <label class="f">リード確保1回の消費の基準値（仮）<input type="number" step="1" min="0" id="slBase"></label>
+      </div>
+      <div class="grid2" id="posExtraInputs"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>持久力温存の安全マージン</h2></div><div class="card-b">
+      <p class="hint">オンにすると、温存を避けるのに必要な体力を「完走に要る体力×1.04×1.05」で判定します（ウマ娘スタミナ計算機βの通常モードと同じ考え方）。オフは×1.0375（資料の範囲の中央値）です。</p>
+      <div class="seg" id="safeSeg"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>継承進化</h2></div><div class="card-b">
+      <p class="hint">ステイゴールド・エピファネイア・ラインクラフトなど一部のウマ娘は、自分で所持していて直親（親）にすると、継承固有が強化版に進化します（祖父母やフレンドから借りた因子では進化しません）。使う設定では、継承固有の候補を進化後の効果で評価し「継承進化」と表示します。</p>
+      <div class="seg" id="evoSeg"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>順位・先頭との差の条件</h2></div><div class="card-b">
+      <p class="hint">「2番手以降」「先頭から2バ身以内」「中団」のような順位や位置の条件は、脚質どおりに走って届く範囲なら、狙って満たせるものとして成立扱いにします（初期値）。届かない条件（差しで1番手など）は発動しない扱いです。追い抜き・ブロック・競り合いなど相手次第の条件は、設定に関係なく成立率で割り引きます。</p>
+      <div class="seg" id="posSeg"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>抽選で発動するスキル</h2></div><div class="card-b">
+      <p class="hint">「ごくまれに」発動するスキル（やまっけ・ラッキーセブンなど、抽選の確率が50%未満のもの）は、期待値では少し得でも、多くのレースで何も起きません。外す設定では、おすすめのスキル構成と因子化の候補に入れません（スキル判定の一覧には期待値のまま表示します）。</p>
+      <div class="seg" id="lotSeg"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>ランダム位置の加速</h2></div><div class="card-b">
+      <p class="hint">コーナー・直線などでランダムに発動する加速は、終盤のよい位置で出たときだけ大きく効きます。控えめにすると、平均ではなく下位25%の結果で評価し、終盤の加速の判定でも手持ちに数えません。</p>
+      <div class="seg" id="randSeg"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>SPの見積もり</h2></div><div class="card-b">
+      <p class="hint">スキルの必要SPは、ヒントLvに応じて割り引きます（Lv1〜5で10%・20%・30%・35%・40%、さらに勉強家で4%・切れ者で10%。勉強家と切れ者は重複しません）。実際のヒントLvは育成次第なので、想定のLvを決めてください。サポカのイベントで取る金スキルは、イベントで得られるLvを使います。初期値は白スキルがLv5（最大）、金スキルがLv1です。</p>
+      <div class="grid2">
+        <label class="f">想定ヒントLv（デッキのスキル）<input type="number" min="0" max="5" step="1" id="hintOwn"></label>
+        <label class="f">想定ヒントLv（白因子・継承固有）<input type="number" min="0" max="5" step="1" id="hintInh"></label>
+        <label class="f">想定ヒントLv（金スキル）<input type="number" min="0" max="5" step="1" id="hintGold"></label>
+      </div>
+      <div class="seg" id="kireSeg"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>因子化の候補</h2></div><div class="card-b">
+      <p class="hint">スピード以外のステータスを上げる常時発動スキル（パッシブ）は、育成シナリオでステータスを十分に伸ばせるため、オンのときは因子化の候補から外します。</p>
+      <div class="seg" id="passSeg"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>全開スパート（仮モデル）</h2></div><div class="card-b">
+      <p class="hint">スピード2001以上で起きる全開スパートは、公式の数値が公開されていません。有志のスキルシミュレーター（しらす丼さん ver.5.0）の仮実装にならって、オンにしたときだけ計算に入れます。全力スパート中に最高速度へ届いた時点で発動し、最高速度が少しずつ上がり続ける扱いです。</p>
+      <div class="seg" id="ftSeg"></div>
+      <div class="grid2">
+        <label class="f">最高速度の上昇量の上限（m/s）<input type="number" step="0.1" min="0" id="ftGain"></label>
+        <label class="f">「伸びを見せる」の効き具合（係数）<input type="number" step="0.01" min="0" id="ftCoef"></label>
+      </div>
+      <p class="hint">上昇量の上限は計算式が分かっていないため、自分で値を決めて入れます。係数は、伸びを見せるスキルの効果が加速度に何割効くかで、仮実装では約0.1とされています。</p>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>データ</h2></div><div class="card-b">
+      <p class="hint" id="dataInfo"></p>
+      <p class="hint">獲得バ身は、1人で走らせたときのスキルあり・なしの差から計算しています。コースの補正ステータス・掛かり・下り坂加速・賢さによる速度の揺らぎは期待値で反映しています。位置取り争い・リード確保の体力消費は「位置取りによる体力消費」の設定で反映し、ブロックは含みません。順位や前後の距離が条件のスキルは条件を満たしたものとして、人気・枠番・脚質構成が条件のスキルは「出走の想定」の入力に従って計算します。</p>
+    </div></div>
+  </section>
+</div>
+
+<script src="engine/umasim.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function(){
+"use strict";
+const RANKS=["S","A","B","C","D","E","F","G"];
+const STYLES=["逃げ","先行","差し","追込"];
+const EVENTS=["チャンミ","LoH","任意"];
+const TRACK_ORDER=["札幌","函館","新潟","福島","中山","東京","中京","京都","阪神","小倉","大井","川崎","船橋","盛岡","ロンシャン","サンタアニタパーク","デルマー"];
+const TYPE_COLOR={シナリオ:"#2fa37a",スピード:"var(--c-spd)",スタミナ:"var(--c-sta)",パワー:"var(--c-pow)",根性:"var(--c-gut)",賢さ:"var(--c-wit)",友人:"#f5a524",グループ:"#a77fd9"};
+const EFFECT_JA={speed:"速度",accel:"加速",heal:"回復",stat:"ステータス",forward:"前に出る",lane:"レーン移動",other:"その他"};
+const ZONE_JA={early:"序盤",mid:"中盤",late:"終盤",corner:"コーナー",straight:"直線",finalCorner:"最終コーナー",finalStraight:"最終直線",any:""};
+const LATE=["late","finalCorner","finalStraight"];
+const ICONS={
+  speed:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h12"/><path d="M13 6l6 6-6 6"/></svg>',
+  accel:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l6 5-6 5"/><path d="M12 7l6 5-6 5"/></svg>',
+  heal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 6v12"/><path d="M6 12h12"/></svg>',
+  stat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6"/><path d="M6 11l6-6 6 6"/></svg>',
+  forward:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h10"/><path d="M10 6l6 6-6 6"/><path d="M19 5v14"/></svg>',
+  other:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>'
+};
+const DEFAULT_S={must:1.0,rec:0.5,opt:0.2,samples:8,ftOn:true,ftGain:1.0,ftCoef:0.1,conserveMargin:0,slBase:35,posExtra:{逃げ:17,先行:17,差し:17,追込:17},passSpdOnly:true,safe105:false,randAccelSafe:true,lotteryOut:true,posStyle:true,inhEvo:true,hintOwn:5,hintInh:5,hintGold:1,spCond:"通常",ver:6};
+const DEFAULT_STATE={field:{popularity:null,post:null,counts:null},ev:"チャンミ",courseId:"10606",scenario:null,ground:"良",weather:"晴",season:"春",charaId:null,style:"差し",apt:null,
+  stats:{spd:1800,sta:1200,pow:1400,gut:1000,wit:1300},mood:"絶好調",spBudget:3000,deck:[null,null,null,null,null,null],inherit:[]};
+
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let S=Object.assign({},DEFAULT_S,LS.get("umaplan2.settings",{}));
+// 設定の版が古い場合は、全開スパートの初期値（オン）だけ新しくする
+if((S.ver||0)<3){S.ftOn=true;S.ver=3;LS.set("umaplan2.settings",S)}
+if((S.ver||0)<4){S.passSpdOnly=true}
+if(S.randAccelSafe==null){S.randAccelSafe=true}
+if(S.lotteryOut==null){S.lotteryOut=true}
+if(S.posStyle==null){S.posStyle=true}
+if(S.inhEvo==null){S.inhEvo=true}
+if(S.spCond==null){S.spCond=S.kiremono?"切れ者":"通常";delete S.kiremono;LS.set("umaplan2.settings",S)}
+if((S.ver||0)<6){S.hintOwn=5;S.hintInh=5;S.hintGold=1;S.ver=6;LS.set("umaplan2.settings",S)}
+if((S.ver||0)<5){S.slBase=DEFAULT_S.slBase;S.posExtra=Object.assign({},DEFAULT_S.posExtra);S.ver=5;LS.set("umaplan2.settings",S)}
+S=Object.assign({},DEFAULT_S,S);
+let st=Object.assign(structuredClone(DEFAULT_STATE),LS.get("umaplan2.state",{}));
+// 目標ステータスが以前の初期値のままなら、新しい初期値にする
+if(JSON.stringify(st.stats)===JSON.stringify({spd:1200,sta:1000,pow:1100,gut:600,wit:1100}))st.stats=structuredClone(DEFAULT_STATE.stats);
+const persist=()=>LS.set("umaplan2.state",st);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const rk=r=>`<span class="rk rk-${esc(r)}">${esc(r)}</span>`;
+function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2200)}
+
+let D=null, SK={}, CH={}, SP={}, CO={}, NON_INH=new Set(), SCN=[], SCN_ALL=new Set(), EVO_INH=new Map();
+const scenario=()=>SCN.find(x=>x.id===st.scenario)||SCN[SCN.length-1]||{id:null,name:"指定なし",sp:[],auto:[]};
+const distCat=d=>d<=1400?"短":d<=1800?"マイル":d<=2400?"中":"長";
+const course=()=>CO[st.courseId]||D.courses[0];
+const chara=()=>CH[st.charaId]||D.charas[0];
+const courseLabel=c=>`${c.surface}${c.dist}m（${distCat(c.dist)}・${c.dirText||c.dir}）`;
+function apts(){const ch=chara(),c=course(),cat=distCat(c.dist);
+  return Object.assign({dist:ch.apt[cat]||"A",surf:ch.apt[c.surface]||"A",style:ch.apt[st.style]||"A"},st.apt||{})}
+
+/* ---------- 画面切り替え ---------- */
+let planDirty=true, lastPlan=null;
+function setStep(name){
+  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-current",b.dataset.step===name?"true":"false"));
+  ["race","uma","deck","plan","settings"].forEach(n=>{$("#p-"+n).hidden=n!==name});
+  if(name==="plan"&&D)computeAndRender();
+  if(name==="settings")renderSettings();
+  window.scrollTo({top:0});
+}
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>setStep(b.dataset.step)));
+document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>setStep(b.dataset.go)));
+const dirty=()=>{planDirty=true;persist();if(D)renderPresets()};
+
+function seg(el,opts,cur,on){el.innerHTML="";opts.forEach(o=>{const b=document.createElement("button");b.type="button";b.textContent=o;
+  b.setAttribute("aria-pressed",o===cur?"true":"false");b.addEventListener("click",()=>{on(o);seg(el,opts,o,on)});el.appendChild(b)})}
+function fillSelect(sel,items,cur){sel.innerHTML=items.map(([v,l])=>`<option value="${esc(v)}"${String(v)===String(cur)?" selected":""}>${esc(l)}</option>`).join("")}
+
+/* ---------- 選択シート（検索付き） ---------- */
+function openPicker({title,items,filters,render,onPick}){
+  const bg=document.createElement("div");bg.className="sheet-bg";
+  bg.innerHTML=`<div class="sheet" role="dialog" aria-label="${esc(title)}"><div style="display:flex;align-items:center;gap:8px"><h3>${esc(title)}</h3><button class="btn sm" style="margin-left:auto" data-close>閉じる</button></div>
+    <input id="pkq" placeholder="名前・衣装・愛称で検索" autocomplete="off">${filters?'<div class="seg sm" id="pkf"></div>':""}<div class="list" id="pkl"></div></div>`;
+  document.body.appendChild(bg);
+  let f=filters?filters.opts[0]:null;
+  const close=()=>bg.remove();
+  bg.addEventListener("click",e=>{if(e.target===bg||e.target.hasAttribute("data-close"))close()});
+  const draw=()=>{const q=bg.querySelector("#pkq").value.trim();
+    const hits=items.filter(it=>(!q||it.search.includes(q))&&(!filters||f===filters.opts[0]||filters.test(it,f))).slice(0,60);
+    bg.querySelector("#pkl").innerHTML=hits.length?hits.map((it,i)=>`<button class="opt" type="button" data-i="${i}">${render(it)}</button>`).join(""):'<p class="hint">見つかりませんでした。</p>';
+    bg.querySelectorAll("[data-i]").forEach(b=>b.addEventListener("click",()=>{onPick(hits[+b.dataset.i]);close()}));};
+  if(filters)seg(bg.querySelector("#pkf"),filters.opts,f,v=>{f=v;draw()});
+  bg.querySelector("#pkq").addEventListener("input",draw);
+  draw();
+}
+
+/* ---------- 1. レース ---------- */
+// これから開催のイベントだけ出す（開催日が今日以降）
+function renderPresets(){
+  const t0=new Date();t0.setHours(0,0,0,0);
+  const list=(D.events||[]).filter(e=>e.date&&CO[e.courseId]&&new Date(e.date+"T00:00:00").getTime()>=t0.getTime()).sort((a,b)=>a.date.localeCompare(b.date));
+  $("#presetBox").hidden=!list.length;
+  const on=e=>st.ev===e.kind&&st.courseId===e.courseId&&st.season===e.season&&(!e.weather||st.weather===e.weather)&&(!e.ground||st.ground===e.ground);
+  $("#presets").innerHTML=list.map((e,i)=>`<button type="button" class="preset" data-pre="${i}" aria-pressed="${on(e)}"><b>${esc(e.label)}</b><small>${esc(e.courseText)}・${esc(e.season||"")}・天気${esc(e.weather||"ランダム")}・バ場${esc(e.ground||"ランダム")}・${esc(e.dateText)}<br>出典：${esc(e.source||"U-tools")}${e.courseSure===false?"（内回り・外回りの判定が不確か）":""}</small></button>`).join("");
+  $("#presets").querySelectorAll("[data-pre]").forEach(b=>b.addEventListener("click",()=>{const e=list[+b.dataset.pre];
+    st.ev=e.kind;st.courseId=e.courseId;if(e.season)st.season=e.season;st.weather=e.weather||"晴";st.ground=e.ground||"良";st.apt=null;
+    dirty();renderRace();renderUma();toast(e.random&&e.random.length?`${e.label}に設定（${e.random.join("・")}はランダムのため晴・良で計算）`:`${e.label}に設定しました`)}));
+}
+function renderRace(){
+  renderPresets();
+  seg($("#evSeg"),EVENTS,st.ev,v=>{st.ev=v;dirty()});
+  const tracks=[...new Set(D.courses.map(c=>c.track))].sort((a,b)=>(TRACK_ORDER.indexOf(a)+99)%999-(TRACK_ORDER.indexOf(b)+99)%999);
+  const cur=course();
+  fillSelect($("#track"),tracks.map(t=>[t,t]),cur.track);
+  fillSelect($("#course"),D.courses.filter(c=>c.track===cur.track&&c.sections.length).map(c=>[c.id,courseLabel(c)]),cur.id);
+  ["ground","weather","season"].forEach(k=>$("#"+k).value=st[k]);
+  fillSelect($("#scenario"),SCN.slice().reverse().map(x=>[x.id,x.name]),scenario().id);
+  renderScenarioHint();
+  renderFacts();
+  renderField();
+}
+function renderField(){
+  st.field=st.field||{popularity:null,post:null,counts:null};
+  const nums=n=>[["","未定"]].concat(Array.from({length:n},(_,i)=>[String(i+1),String(i+1)]));
+  fillSelect($("#fPop"),nums(18).map(([v,l])=>[v,v?l+"番人気":l]),st.field.popularity||"");
+  fillSelect($("#fPost"),nums(9).map(([v,l])=>[v,v?l+"枠":l]),st.field.post||"");
+  seg($("#fCountsOn"),["未定","指定する"],st.field.counts?"指定する":"未定",v=>{
+    st.field.counts=v==="指定する"?(st.field.counts||(st.ev==="LoH"?{逃げ:2,先行:4,差し:4,追込:1}:{逃げ:2,先行:3,差し:2,追込:1})):null;dirty();renderField()});
+  $("#fCounts").hidden=!st.field.counts;
+  if(st.field.counts)STYLES.forEach(k=>$("#fc-"+k).value=st.field.counts[k]??0);
+}
+$("#fPop").addEventListener("change",e=>{st.field.popularity=e.target.value?+e.target.value:null;dirty()});
+$("#fPost").addEventListener("change",e=>{st.field.post=e.target.value?+e.target.value:null;dirty()});
+STYLES.forEach(k=>$("#fc-"+k).addEventListener("input",e=>{const v=parseInt(e.target.value,10);if(v>=0&&st.field.counts){st.field.counts[k]=Math.min(17,v);dirty()}}));
+function renderFacts(){const c=course();
+  const fc=c.sections.filter(s=>s.kind==="corner").length;
+  $("#courseFacts").innerHTML=[["距離区分",distCat(c.dist)],["コーナー",fc+"回"],["最終直線",c.straight!=null?c.straight+"m":"-"],["ゴール前の上り坂",c.finalUphill?"あり":"なし"],["補正ステータス",c.statBonus&&c.statBonus.length?c.statBonus.join("・"):"なし"]]
+    .map(([k,v])=>`<span class="fact">${k} <b>${esc(v)}</b></span>`).join("")}
+$("#track").addEventListener("change",e=>{const c=D.courses.find(x=>x.track===e.target.value&&x.sections.length);if(c){st.courseId=c.id;st.apt=null;dirty();renderRace();renderUma()}});
+$("#course").addEventListener("change",e=>{st.courseId=e.target.value;st.apt=null;dirty();renderFacts();renderUma()});
+["ground","weather","season"].forEach(k=>$("#"+k).addEventListener("change",e=>{st[k]=e.target.value;dirty()}));
+function renderScenarioHint(){const sc=scenario();
+  $("#scenarioHint").textContent=sc.sp.length?`このシナリオでSPを使って取れるスキル：${sc.sp.map(id=>SK[id]?SK[id].name:id).join("・")}。ほかのシナリオのスキルは、白スキルなら白因子で継承できる扱いにします（金スキルは継承できないため取れません）。`:""}
+// シナリオを変えたとき、目標ステータスが前のシナリオの上限のまま（自分で変えていない）なら、新しいシナリオの上限にする
+const capsOf=sc=>sc&&sc.caps?Object.assign({},sc.caps):null;
+const sameStats=(a,b)=>a&&b&&["spd","sta","pow","gut","wit"].every(k=>Number(a[k])===Number(b[k]));
+$("#scenario").addEventListener("change",e=>{const prev=capsOf(scenario());st.scenario=e.target.value;const nc=capsOf(scenario());
+  if(nc&&(sameStats(st.stats,prev)||st.statsAuto)){st.stats=nc;st.statsAuto=true;toast(`目標ステータスを${scenario().name}の上限にしました`)}
+  dirty();renderScenarioHint();renderUma()});
+
+/* ---------- 2. ウマ娘 ---------- */
+function renderUma(){
+  const ch=chara();
+  $("#charaPick").innerHTML=`<span><span class="t">${esc(ch.title)}</span><span class="n">${esc(ch.name)}</span></span><span class="chg">変更 ›</span>`;
+  seg($("#styleSeg"),STYLES,st.style,v=>{st.style=v;st.apt=null;dirty();renderApt()});
+  renderApt();
+  ["spd","sta","pow","gut","wit"].forEach(k=>$("#st-"+k).value=st.stats[k]);
+  $("#mood").value=st.mood;
+  $("#spBudget").value=st.spBudget??3000;
+}
+function renderApt(){const ch=chara(),c=course(),cat=distCat(c.dist),a=apts();
+  const row=(k,keys,on)=>`<div class="aptrow"><span class="k">${k}</span>${keys.map(x=>`<span class="apt${x===on?" on":""}">${rk(ch.apt[x]||"G")}${x}</span>`).join("")}</div>`;
+  $("#aptGrid").innerHTML=row("バ場",["芝","ダート"],c.surface)+row("距離",["短","マイル","中","長"],cat)+row("脚質",STYLES,st.style);
+  const r=RANKS.map(x=>[x,x]);
+  fillSelect($("#aptDist"),r,a.dist);fillSelect($("#aptSurf"),r,a.surf);fillSelect($("#aptStyle"),r,a.style);}
+$("#charaPick").addEventListener("click",()=>{
+  const items=D.charas.map(c=>({c,search:`${c.name}${c.title}${c.nickname}`}));
+  openPicker({title:"育成ウマ娘を選ぶ",items,render:it=>`<span><span class="t">${esc(it.c.title)}</span><span class="n">${esc(it.c.name)}</span></span>`,
+    onPick:it=>{st.charaId=it.c.id;const best=STYLES.slice().sort((x,y)=>RANKS.indexOf(it.c.apt[x])-RANKS.indexOf(it.c.apt[y]))[0];st.style=best;st.apt=null;dirty();renderUma()}});
+});
+[["#aptDist","dist"],["#aptSurf","surf"],["#aptStyle","style"]].forEach(([s,k])=>$(s).addEventListener("change",e=>{st.apt=Object.assign({},apts(),{[k]:e.target.value});dirty()}));
+["spd","sta","pow","gut","wit"].forEach(k=>$("#st-"+k).addEventListener("input",e=>{const v=parseInt(e.target.value,10);if(v>0){st.stats[k]=Math.min(2500,v);st.statsAuto=false;dirty()}}));
+$("#mood").addEventListener("change",e=>{st.mood=e.target.value;dirty()});
+$("#btnCaps").addEventListener("click",()=>{const c=capsOf(scenario());if(!c){toast("このシナリオの上限データがありません");return}st.stats=c;st.statsAuto=true;dirty();renderUma();toast(`${scenario().name}の上限を入れました`)});
+$("#spBudget").addEventListener("input",e=>{const v=parseInt(e.target.value,10);if(v>=0){st.spBudget=v;persist()}});
+
+/* ---------- 3. デッキ ---------- */
+function renderDeck(){
+  const wrap=$("#deckSlots");wrap.innerHTML="";
+  for(let i=0;i<6;i++){
+    const cd=SP[st.deck[i]];
+    const d=document.createElement("div");d.className="slot";
+    if(cd)d.style.borderColor=TYPE_COLOR[cd.type]||"var(--line)";
+    // ヒントのスキルを表示。友人などヒントのないカードは、イベントで取れるスキル（金を先）を表示
+    let sk=cd?cd.skillIds.map(id=>SK[id]).filter(s=>s&&(s.rarity==="gold"||s.rarity==="white")):[];
+    if(cd&&!sk.length)sk=(cd.eventSkillIds||[]).map(id=>SK[id]).filter(s=>s&&(s.rarity==="gold"||s.rarity==="white")).sort((a,b)=>(b.rarity==="gold")-(a.rarity==="gold"));
+    d.innerHTML=`<div class="top"><span class="no">${i+1}</span><span style="font-weight:800;font-size:13px;white-space:nowrap">枠${i+1}${i===5?'<small style="font-size:10.5px;color:var(--muted);margin-left:3px">フレンド</small>':""}</span>${cd?`<span class="type" style="background:${TYPE_COLOR[cd.type]||"#999"}">${esc(cd.rarity)} ${esc(cd.type)}</span><button class="xbtn" type="button" data-clear aria-label="このカードを外す" title="外す">✕</button>`:""}</div>
+      <button class="pick" type="button">${cd?`<span><span class="t">${esc(cd.title)}</span><span class="n">${esc(cd.name)}</span></span>`:`<span class="n" style="color:var(--muted)">カードを選ぶ</span>`}<span class="chg">${cd?"変更 ›":"選ぶ ›"}</span></button>
+      <div class="chips">${sk.slice(0,10).map(s=>`<span class="chip${s.rarity==="gold"?" gold":""}">${esc(s.name)}</span>`).join("")}${sk.length>10?`<span class="chip">ほか${sk.length-10}件</span>`:""}</div>
+`;
+    wrap.appendChild(d);
+    d.querySelector(".pick").addEventListener("click",()=>pickSupport(i));
+    const cl=d.querySelector("[data-clear]");if(cl)cl.addEventListener("click",()=>{st.deck[i]=null;dirty();renderDeck()});
+  }
+}
+function pickSupport(i){
+  const items=D.supports.filter(s=>s.rarity!=="R").map(s=>({s,search:`${s.name}${s.title}`}));
+  openPicker({title:`${i===5?"フレンド枠":"枠"+(i+1)}のカード`,items,
+    filters:{opts:["すべて","スピード","スタミナ","パワー","根性","賢さ","友人","グループ"],test:(it,f)=>it.s.type===f},
+    render:it=>`<span class="type" style="background:${TYPE_COLOR[it.s.type]||"#999"}">${esc(it.s.rarity)}</span><span><span class="t">${esc(it.s.title)}</span><span class="n">${esc(it.s.name)}</span></span>`,
+    onPick:it=>{st.deck[i]=it.s.id;dirty();renderDeck()}});
+}
+
+/* ---------- 判定（エンジン呼び出し） ---------- */
+// ランダム位置の加速は、発動位置しだいで効果が大きく変わるため、控えめ設定では下位25%点で評価する
+// 抽選で発動するスキル（「ごくまれに」など、抽選の確率が50%未満）
+const isLottery=s=>(s.ep||[]).some(q=>(q.conditions||[]).some(g=>["random_lot","random_lot_shared"].some(k=>(g[k]||[]).some(c=>Number(c.value)<50))));
+const mOf=(s,r)=>(S.randAccelSafe&&s.effect==="accel"&&r.random&&r.q25!=null)?r.q25:r.mean;
+const tierOf=v=>v>=S.must?"must":v>=S.rec?"rec":v>=S.opt?"opt":"none";
+const isInherited=id=>/^9\d{5}$/.test(id);
+// 枠番・人気・出走メンバーなど、レース当日まで分からない条件（期待値を半分にして表示）
+// 人気は未定のとき減点しない（想定人気を入れたときだけ判定）。その他の出走メンバー次第の条件は期待値を半分にする
+const FIELD_KEYS=/^(nobody|post_number|running_style_count|same_skill_horse_count|is_exist_chara_id|running_style_equal_popularity|random_lot|motivation|grade|is_badstart|temptation)/;
+// ===== 重い計算：スキルごとの獲得バ身（入手経路に関係しない部分） =====
+async function computePlan(onProgress){
+  const ch=chara(),c=course(),a=apts();
+  const field=st.field||{};
+  const ftOpt={enabled:S.ftOn,maxGain:S.ftGain,coef:S.ftCoef};
+  const comp={posMode:S.posStyle?"style":"prob",secureLeadBase:S.slBase||0,posExtra:S.posExtra||{},conserveTarget:S.safe105?1.04*1.05:undefined};
+  const input={course:c,cond:{ground:st.ground,weather:st.weather,season:st.season},uma:{style:st.style,stats:st.stats,apt:a,mood:st.mood},field:{popularity:field.popularity,post:field.post,counts:field.counts,defaultCounts:st.ev==="LoH"?{逃げ:2,先行:4,差し:4,追込:1}:null},options:Object.assign({fullThrottle:ftOpt},comp)};
+  const ctx=UmaSim.buildContext(input);
+  const ctxRush=UmaSim.buildContext(Object.assign({},input,{options:Object.assign({rushed:"always",fullThrottle:ftOpt,conserveMargin:(S.conserveMargin||0)/100},comp)}));
+  const ctxC=UmaSim.buildContext(Object.assign({},input,{options:Object.assign({},input.options,{conserveMargin:(S.conserveMargin||0)/100})}));
+  const rate=UmaSim.activationRate(ctx);
+  const deckCards=st.deck.map(id=>SP[id]).filter(Boolean);
+  const uniq=SK[ch.uniqueSkillId];
+  // シナリオ専用スキル：選んだシナリオなら育成中にSPで取れる。ほかのシナリオのものは、白スキルなら白因子で継承できる（金は継承できないので取れない）
+  const scSet=new Set(scenario().sp);
+  const isBuyable=s=>(s.rarity==="white"||s.rarity==="gold")&&!isInherited(s.id)&&!s.owner&&s.sp!=null&&(s.groupRate??1)>=1&&(!SCN_ALL.has(s.id)||scSet.has(s.id)||s.rarity==="white");
+  const pool=D.skills.filter(isBuyable);
+  if(uniq)pool.push(uniq);
+  // 進化スキル：元のスキルを取ったうえで、育成中に条件を満たすと進化する（育成ウマ娘ごと）
+  const evoSkills=(ch.upgrades||[]).map(u=>SK[u.skillId]).filter(Boolean);
+  pool.push(...evoSkills);
+  const live=[],dead=[];
+  for(const s of pool){(UmaSim.planSkill(ctx,s,.5).length?live:dead).push(s)}
+  // 回復は「積み上げ」で評価する。順番の目安として、デッキ（トレーニング・全イベント）・固有・覚醒で取れるものを先にする
+  const deckAny=new Set([...deckCards.flatMap(cd=>cd.skillIds),...deckCards.flatMap(cd=>cd.eventSkillIds||[]),...(ch.awakeningSkillIds||[])]);
+  if(uniq)deckAny.add(uniq.id);
+  scSet.forEach(id=>deckAny.add(id));
+  evoSkills.forEach(k=>deckAny.add(k.id));
+  const heals=live.filter(s=>s.effect==="heal");
+  const others=live.filter(s=>s.effect!=="heal");
+  heals.sort((x,y)=>(deckAny.has(x.id)?0:1)-(deckAny.has(y.id)?0:1)||(y.value||0)-(x.value||0));
+  const total=heals.length+others.length+D.charas.length;let done=0;
+  const tick=async()=>{done++;if(done%20===0){onProgress(done/total);await new Promise(r=>setTimeout(r))}};
+  let healPlans=[],ownHealPlans=[];
+  const rows=[];
+  for(const s of heals){
+    const base=UmaSim.run(ctx,healPlans);
+    const r=UmaSim.skillBashin(ctx,s,{base,basePlans:healPlans,samples:S.samples});
+    rows.push({s,r,exp:r.ok?r.mean*rate*(r.folded?1:(r.prob??1)):0});
+    if(r.ok&&r.mean>0.05){const pl=UmaSim.planSkill(ctx,s,.5);healPlans=healPlans.concat(pl);if(deckAny.has(s.id))ownHealPlans=ownHealPlans.concat(pl)}
+    await tick();
+  }
+  const base=UmaSim.run(ctx,ownHealPlans);
+  for(const s of others){
+    const r=UmaSim.skillBashin(ctx,s,{base,basePlans:ownHealPlans,samples:S.samples});
+    const passive=(s.ep||[]).every(p=>p.baseTime<0);
+    const fieldDep=r.ok&&(r.unknown||[]).some(k=>FIELD_KEYS.test(k));
+    rows.push({s,r,field:fieldDep,exp:r.ok?mOf(s,r)*(passive?1:rate)*(fieldDep?0.5:1)*(r.folded?1:(r.prob??1)):0});
+    await tick();
+  }
+  // 継承固有（同じウマ娘は親にできないので除外）。全員分を評価しておき、候補表示と任意選択の両方に使う
+  const inhAll=[];
+  for(const x of D.charas){
+    if(x.characterId===ch.characterId||!x.uniqueSkillId){await tick();continue}
+    let s9=SK[x.inheritedSkillId]||SK["9"+x.uniqueSkillId.slice(1)];
+    if(!s9){await tick();continue}
+    // 継承進化：一部のウマ娘（ステイゴールド・エピファネイア・ラインクラフトなど）は、所持していて直親にすると継承固有が強化版になる
+    const evo=S.inhEvo!==false?EVO_INH.get(x.uniqueSkillId):null;
+    if(evo)s9=evo;
+    const r=UmaSim.skillBashin(ctx,s9,{base,basePlans:ownHealPlans,samples:Math.min(6,S.samples)});
+    inhAll.push({x,s:s9,evo:!!evo,r,exp:r.ok?mOf(s9,r)*rate*(r.folded?1:(r.prob??1)):0});
+    await tick();
+  }
+  inhAll.sort((p,q)=>q.exp-p.exp);
+  onProgress(1);
+  return{ch,c,a,cat:distCat(c.dist),ctx,ctxC,ctxRush,rate,deckCards,uniq,rows,dead,ownHealPlans,inhAll,courseMod:ctx.courseMod,isBuyable,scSet,scName:scenario().name};
+}
+
+// ===== 軽い計算：入手経路・イベントの選択・系統の代表選び・持久力温存（選択を変えたらここだけやり直す） =====
+const evKey=(cd,ev)=>`${cd.id}:${ev.title}`;
+function derive(p){
+  const ctx=p.ctx,ch=p.ch,uniq=p.uniq;
+  const rowById=new Map(p.rows.map(x=>[x.s.id,x]));
+  const val=id=>{const x=rowById.get(id);return x&&x.r.ok?x.exp:0};
+  // サポカのイベント：選択肢ごとの価値と、おすすめ・選択中を決める
+  st.evChoice=st.evChoice||{};
+  const guide=[];
+  const fromEvent={};
+  // シナリオのイベントで取れる金スキル（scenarios.json の events）を、サポカのイベントと同じ形にして一緒に扱う
+  const sc=scenario();
+  const present=new Set([...p.deckCards.map(c=>c.name),ch.name]);
+  const scCard={id:"scn:"+sc.id,name:sc.name,type:"シナリオ"};
+  const scEvents=(sc.events||[]).map(e=>{
+    const choices=[];
+    for(const c of e.choices){
+      const ok=!c.link||present.has(c.link);
+      const hint={skillId:ok?c.gold:(c.white||c.gold),lv:c.lv||1};
+      if(c.same&&choices.length){choices[choices.length-1].results[0].hints.push(hint);continue}
+      choices.push({text:c.text?c.text+(c.link?(ok?"（リンク対象あり：金）":"（リンク対象なし：白）"):""):"",results:[{pattern:1,hints:[hint]}]});
+    }
+    return{kind:e.kind||"シナリオイベント",title:e.title,choices};
+  });
+  const evSources=p.deckCards.map(cd=>[cd,(D.supportEvents||{})[cd.id]||[]]).concat(scEvents.length?[[scCard,scEvents]]:[]);
+  for(const [cd,evList] of evSources){
+    for(const ev of evList){
+      const opts=ev.choices.map((ch,i)=>{
+        // シナリオリンク：リンク先のシナリオで育成するときは、ヒントの白スキルの上位の金スキルも取れる（rules.json の scenarioLink）
+        const link=((D.rules&&D.rules.scenarioLink)||[]).find(l=>l.supports.includes(cd.id)&&l.scenario===scenario().id);
+        const withLink=hs=>link?hs.concat(hs.filter(h=>link.upgrade[h.skillId]).map(h=>({skillId:link.upgrade[h.skillId],lv:1,link:true}))):hs;
+        const res=ch.results.map(r=>({pattern:r.pattern,skills:withLink(r.hints).map(h=>({s:SK[h.skillId],lv:h.lv,link:h.link,exp:val(h.skillId)})).filter(k=>k.s)}));
+        const best=Math.max(0,...res.flatMap(r=>r.skills.map(k=>k.exp)));
+        const sum=(res[0]?res[0].skills:[]).reduce((t,k)=>t+k.exp,0);
+        return{i,text:ch.text,res,best,sum,multi:ch.results.length>1};
+      });
+      const rec=opts.reduce((a,b)=>(b.best>a.best+1e-9||(Math.abs(b.best-a.best)<1e-9&&b.sum>a.sum))?b:a,opts[0]);
+      const key=evKey(cd,ev);
+      const selIdx=opts.length>1?(st.evChoice[key]??rec.i):0;
+      const sel=opts.find(o=>o.i===selIdx)||rec;
+      // 選んだ選択肢（選択肢が1つのイベントはそれ）で取れるスキルを入手経路に入れる。成功・失敗がある場合はどちらも記録
+      for(const r of sel.res)for(const k of r.skills)(fromEvent[k.s.id]=fromEvent[k.s.id]||[]).push({card:cd,ev,choice:sel.text,pattern:r.pattern,multi:sel.multi,lv:k.lv,link:k.link});
+      const hasGold=opts.some(o=>o.res.some(r=>r.skills.some(k=>k.s.rarity==="gold")));
+      // 表示するのは金スキルが取れるイベント（連続イベントの最終段など）だけ。それ以外はおすすめの選択肢を自動で採用する
+      if(hasGold&&opts.some(o=>o.best>0))guide.push({card:cd,ev,key,opts,rec,sel});
+    }
+  }
+  guide.sort((a,b)=>b.rec.best-a.rec.best);
+  const evLabel=o=>`${o.card.name}「${o.ev.title}」${o.choice?`の選択肢「${o.choice}」`:""}${o.multi?(o.pattern===1?"（成功時）":"（失敗時）"):""}${o.link?"・シナリオリンクで上位スキル":""}`;
+  const fromDeck={};p.deckCards.forEach(cd=>cd.skillIds.forEach(id=>{(fromDeck[id]=fromDeck[id]||[]).push(cd.name)}));
+  // 育成ウマ娘自身のスキル：rank 0 が初期スキル、1以上が覚醒Lv（スキル構成のデータがない場合は区別せず「所持スキル」）
+  const ranks=ch.skillRanks&&Object.keys(ch.skillRanks).length?ch.skillRanks:null;
+  const awaken=new Set(ranks?Object.keys(ranks):(ch.awakeningSkillIds||[]));
+  const ownLabel=id=>{if(!ranks)return"育成ウマ娘の所持スキル";const r=ranks[id];return r===0||r==null?"初期スキル":`覚醒Lv${r}`};
+  // 入手経路（ゲームの取得ルール）：固有／サポカのトレーニング／選んだイベント選択肢／覚醒／白因子（白スキルのみ。金は因子で継承できない）
+  const evoMap=new Map((ch.upgrades||[]).map(u=>[u.skillId,u]));
+  const routeOf=s=>{
+    if(uniq&&s.id===uniq.id)return{label:"固有スキル",kind:"own"};
+    if(evoMap.has(s.id)){const u=evoMap.get(s.id),b=SK[u.baseId];const br=b?routeOf(b):null;
+      return br?{label:`進化（元：${b.name}・覚醒Lv${u.rank}以上）`,kind:"own",evo:u,baseRoute:br}:null}
+    if(fromDeck[s.id])return{label:"サポカ（トレーニング）："+[...new Set(fromDeck[s.id])].slice(0,2).join("／")+(fromDeck[s.id].length>2?" ほか":""),kind:"own"};
+    if(fromEvent[s.id]){const o=fromEvent[s.id].slice().sort((a,b)=>a.pattern-b.pattern)[0];return{label:(o.card.type==="シナリオ"?"シナリオのイベント：":"サポカのイベント：")+evLabel(o),kind:"own",evLv:o.lv}}
+    if(awaken.has(s.id))return{label:ownLabel(s.id),kind:"own"};
+    if(p.scSet.has(s.id))return{label:"シナリオ（"+p.scName+"）",kind:"own"};
+    if(s.rarity==="white"&&!NON_INH.has(s.id))return{label:"白因子で継承",kind:"inh"};
+    return null;
+  };
+  const statPassive=s=>{const ep=s.ep||[];return ep.length>0&&ep.every(q=>q.baseTime<0&&(q.effects||[]).every(e=>e.target>=2&&e.target<=5))};
+  for(const x of p.rows){x.route=routeOf(x.s);x.expAdj=x.exp;x.conserveNeed=false;x.statPassive=statPassive(x.s);x.marg=null}
+  // 持久力温存の回避に必要な回復：入手できる回復を、デッキ等→白因子の順、発動が早い順に積み、温存が起きなくなるまで必須扱い
+  const selHeal=(st.inherit||[]).map(id=>p.inhAll.find(u=>u.s.id===id)).filter(u=>u&&u.s.effect==="heal").flatMap(u=>UmaSim.planSkill(ctx,u.s,.5));
+  const healRows=p.rows.filter(x=>x.s.effect==="heal"&&x.route&&x.r.ok);
+  const firstPos=x=>{const pl=UmaSim.planSkill(ctx,x.s,.5);return pl.length?pl[0].pos:1e9};
+  healRows.sort((a,b)=>(a.route.kind==="own"?0:1)-(b.route.kind==="own"?0:1)||firstPos(a)-firstPos(b)||(b.s.value||0)-(a.s.value||0));
+  let consPlans=selHeal.slice();
+  for(const x of healRows){
+    const cur=UmaSim.run(p.ctxC,consPlans);
+    if(cur.conserveAt==null)break;
+    const pl=UmaSim.planSkill(ctx,x.s,.5);
+    if(UmaSim.run(p.ctxC,consPlans.concat(pl)).conserveShort<cur.conserveShort-1){consPlans=consPlans.concat(pl);x.conserveNeed=true;x.expAdj=Math.max(x.expAdj,S.must+0.01)}
+  }
+  // 系統ごとに、入手できる段階の中で期待バ身が最も高いものを代表にする（同点なら合計SPが安い方）
+  const chainOf=s=>D.skills.filter(x=>x.groupId===s.groupId&&p.isBuyable(x)&&(x.groupRate??1)<=(s.groupRate??1)).sort((x,y)=>(x.groupRate??1)-(y.groupRate??1));
+  const groups=new Map();
+  const grpKey=x=>{if(x.route&&x.route.evo){const b=SK[x.route.evo.baseId];return b?(b.groupId||b.id):x.s.id}return x.s.owner?x.s.id:(x.s.groupId||x.s.id)};
+  for(const x of p.rows){const g=grpKey(x);(groups.get(g)||groups.set(g,[]).get(g)).push(x)}
+  const reps=[];
+  for(const list of groups.values()){
+    for(const x of list){const evoB=x.route&&x.route.evo?SK[x.route.evo.baseId]:null;const chain=evoB?(evoB.owner?[evoB]:chainOf(evoB)):x.s.owner?[x.s]:chainOf(x.s);x.chain=chain;x.chainSp=chain.reduce((t,k)=>t+(k.sp||0),0);x.lower=chain.filter(k=>k.id!==x.s.id).map(k=>k.name)}
+    // デッキ・固有・初期/覚醒・イベントで取れる段階が1つでもあれば、その系統は手持ちの経路で取る（上の段階を白因子で狙う扱いにはしない）
+    const own=list.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
+    const ok=own.length?own:list.filter(x=>x.route&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
+    if(ok.length){const rep=ok[0];rep.tier=rep.tierBase=tierOf(rep.expAdj);reps.push(rep)}
+  }
+  return{guide,reps};
+}
+
+// ===== 因子周回の編成：因子化したい白スキルのヒントを持つサポカを、優先度の重みで貪欲に6枚選ぶ =====
+function farmDeck(fac){
+  const W=new Map();
+  fac.top.forEach(x=>W.set(x.s.id,3));fac.high.forEach(x=>{if(!W.has(x.s.id))W.set(x.s.id,2)});fac.norm.forEach(x=>{if(!W.has(x.s.id))W.set(x.s.id,1)});
+  if(!W.size)return null;
+  // 系統（○と◎）は同じ因子として扱う：グループの白スキルならどれのヒントでも可
+  const grpOf=id=>{const k=SK[id];return k?(k.groupId||k.id):id};
+  const want=new Map();for(const [id,w] of W)want.set(grpOf(id),{w,id});
+  const cards=D.supports.filter(sp=>sp.rarity!=="R").map(sp=>{
+    const ids=new Set([...sp.skillIds,...(sp.eventSkillIds||[])].filter(id=>{const k=SK[id];return k&&k.rarity==="white"}));
+    const g=new Set([...ids].map(grpOf).filter(x=>want.has(x)));
+    return{sp,g};
+  }).filter(c=>c.g.size);
+  const picked=[],covered=new Set();
+  for(let n=0;n<6&&cards.length;n++){
+    let best=null,bs=0;
+    for(const c of cards){if(picked.includes(c))continue;let sc=0;for(const g of c.g)if(!covered.has(g))sc+=want.get(g).w;sc+=c.sp.rarity==="SSR"?0.01:0;if(sc>bs){bs=sc;best=c}}
+    if(!best||bs<1)break;
+    picked.push(best);best.newG=[...best.g].filter(g=>!covered.has(g));best.newG.forEach(g=>covered.add(g));
+  }
+  const tierCount=t=>{const list=fac[t];return{all:list.length,hit:list.filter(x=>covered.has(grpOf(x.s.id))).length}};
+  // その他の候補：デッキ案に入らなかったカードで、因子化したいスキルのヒントを2種類以上持つもの（重みの合計順に最大10枚）
+  const others=cards.filter(c=>!picked.includes(c)&&c.g.size>=2).map(c=>({...c,score:[...c.g].reduce((t,g)=>t+want.get(g).w,0)+(c.sp.rarity==="SSR"?0.01:0)}))
+    .sort((a,b)=>b.score-a.score||b.g.size-a.g.size).slice(0,10);
+  return{picked,others,tc:{top:tierCount("top"),high:tierCount("high"),norm:tierCount("norm")},name:g=>SK[want.get(g).id].name,w:g=>want.get(g).w};
+}
+
+// 継承固有の選択・集計（選択を変えたときはここだけやり直す）
+function summarize(p,d){
+  const ctx=p.ctx;
+  const byId=new Map(p.inhAll.map(u=>[u.s.id,u]));
+  st.inherit=(st.inherit||[]).filter(id=>byId.has(id)).slice(0,6);
+  const sel=st.inherit.map(id=>byId.get(id));
+  const selHeal=sel.filter(u=>u.s.effect==="heal").flatMap(u=>UmaSim.planSkill(ctx,u.s,.5));
+  const ownHeals=d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.route.kind==="own"&&x.r.ok).flatMap(x=>UmaSim.planSkill(ctx,x.s,.5));
+  const healPlans=ownHeals.concat(selHeal);
+  const m0heal=ownHeals;
+  const noHeal=UmaSim.run(p.ctxC,[]),withOwn=UmaSim.run(p.ctxC,healPlans),rushOwn=UmaSim.run(p.ctxRush,healPlans);
+  const short=r=>r.conserveAt==null?0:r.conserveShort;
+  const deficit=short(withOwn),deficitNoHeal=short(noHeal),deficitRush=short(rushOwn);
+  const unit=withOwn.maxHP*0.055; // 金回復1個（最大体力の5.5%）
+  // 加速：手持ち（デッキ・固有・シナリオ・イベント・選んだ継承固有）の終盤加速を入れたとき、最高速度に届く地点がどこまで早まるか。
+  // さらに白因子の加速を1個足したときの期待バ身が「推奨」未満なら、加速は足りていると判定する
+  // 終盤の加速：区分が終盤のもの＋コーナー・直線・指定なしでも発動位置が終盤に入るもの
+  const lateStart=ctx.phaseIv[2][0];
+  const lateAccel=x=>x.s.effect==="accel"&&(LATE.includes(x.s.zone)||UmaSim.planSkill(ctx,x.s,.5).some(pl=>pl.pos>=lateStart-1));
+  const ownAccAll=d.reps.filter(x=>lateAccel(x)&&x.route.kind==="own"&&x.r.ok&&x.tierBase!=="none");
+  // ランダム位置の加速は終盤に出る保証がないので、控えめ設定では「手持ちの加速」に数えない
+  const ownAcc=S.randAccelSafe?ownAccAll.filter(x=>!x.r.random):ownAccAll;
+  const ownAccRand=ownAccAll.length-ownAcc.length;
+  const selAcc=sel.filter(u=>lateAccel(u)&&u.exp>=S.opt);
+  const accPlans=ownAcc.flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)).concat(selAcc.flatMap(u=>UmaSim.planSkill(ctx,u.s,.5)));
+  const baseA=healPlans.concat(accPlans);
+  const reach0=UmaSim.run(ctx,healPlans),reach1=UmaSim.run(ctx,baseA);
+  const runA=UmaSim.run(ctx,baseA);
+  const inhAcc=d.reps.filter(x=>lateAccel(x)&&x.route.kind==="inh"&&x.r.ok);
+  for(const x of d.reps){x.tier=x.tierBase;x.marg=null}
+  let bestNext=0;
+  for(const x of inhAcc){
+    const r=UmaSim.skillBashin(ctx,x.s,{base:runA,basePlans:baseA,samples:Math.min(6,S.samples)});
+    x.marg=r.ok?mOf(x.s,r)*p.rate*(r.folded?1:(r.prob??1)):0;
+    x.tier=tierOf(Math.min(x.expAdj,x.marg));
+    bestNext=Math.max(bestNext,x.marg);
+  }
+  const accelOwn=ownAcc.length+selAcc.length;
+  const accelInh=inhAcc.filter(x=>x.tier==="must"||x.tier==="rec").length;
+  const accel={rand:ownAccRand,own:accelOwn,inh:accelInh,bestNext,ok:bestNext<S.rec,reach0,reach1};
+  // 因子化の候補：手持ち（デッキ・固有・初期/覚醒・シナリオ・イベント・進化で取る推奨以上のスキル）と選んだ継承固有を入れて走らせ、
+  // そこに足したときに増える分で評価し直す（同じタイミングで効果が重なるスキルは低く出る）
+  {
+    const isPas=k=>(k.ep||[]).length>0&&k.ep.every(q=>q.baseTime<0);
+    const ownTaken=d.reps.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok&&x.s.effect!=="heal"&&(x.tierBase==="must"||x.tierBase==="rec"));
+    const baseAll=healPlans.concat(ownTaken.flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)),sel.filter(u=>u.s.effect!=="heal").flatMap(u=>UmaSim.planSkill(ctx,u.s,.5)));
+    const runAll=UmaSim.run(ctx,baseAll);
+    for(const x of d.reps){
+      if(!(x.route&&x.route.kind==="inh"&&x.r.ok&&x.s.effect!=="heal"&&x.tierBase!=="none"))continue;
+      const r=UmaSim.skillBashin(ctx,x.s,{base:runAll,basePlans:baseAll,samples:Math.min(6,S.samples)});
+      x.marg=r.ok?mOf(x.s,r)*(isPas(x.s)?1:p.rate)*(x.field?.5:1)*(r.folded?1:(r.prob??1)):0;
+      x.tier=tierOf(Math.min(x.expAdj,x.marg));
+    }
+  }
+  // 継承固有の候補：単独の評価で上位24件（同名は1件）を、手持ち（推奨以上のスキルと回復）と合わせて走らせたときに増える分で評価し直す。
+  // おすすめ6件は、選んだものを順に積み上げながら1件ずつ選ぶ（加速どうしなど効果が重なるものは後回しになる）
+  const isPasI=k=>(k.ep||[]).length>0&&k.ep.every(q=>q.baseTime<0);
+  const ownTakenI=d.reps.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok&&x.s.effect!=="heal"&&(x.tierBase==="must"||x.tierBase==="rec"));
+  let baseI=m0heal.concat(ownTakenI.flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)));
+  const pool=[];const seenN=new Set();
+  for(const u of p.inhAll){if(u.exp<=0.02||seenN.has(u.s.name))continue;seenN.add(u.s.name);pool.push(u);if(pool.length>=24)break}
+  const margI=(u,plans,run)=>{const r=UmaSim.skillBashin(ctx,u.s,{base:run,basePlans:plans,samples:Math.min(6,S.samples)});return r.ok?mOf(u.s,r)*(isPasI(u.s)?1:p.rate)*(r.folded?1:(r.prob??1)):0};
+  let runI=UmaSim.run(ctx,baseI);
+  for(const u of pool)u.mexp=margI(u,baseI,runI);
+  const recIds=[];let left=pool.slice();
+  while(recIds.length<6&&left.length){
+    left.sort((a,b)=>b.mexp2-a.mexp2||b.mexp-a.mexp);
+    if(recIds.length===0)left.sort((a,b)=>b.mexp-a.mexp);
+    const u=left.shift();if((recIds.length?u.mexp2:u.mexp)<=0.02)break;
+    recIds.push(u.s.id);baseI=baseI.concat(UmaSim.planSkill(ctx,u.s,.5));runI=UmaSim.run(ctx,baseI);
+    for(const v of left)v.mexp2=margI(v,baseI,runI);
+  }
+  // 候補の表示：おすすめ6件を先に、残りは増える分の大きい順で合計10件
+  const recU=recIds.map(id=>pool.find(u=>u.s.id===id));
+  const cands=recU.concat(pool.filter(u=>!recIds.includes(u.s.id)).sort((a,b)=>b.mexp-a.mexp)).slice(0,Math.max(10,recU.length));
+  for(const u of sel)if(!cands.includes(u)){if(u.mexp==null)u.mexp=u.exp;cands.push(u)}
+  const c=p.c,a=p.a,cat=p.cat,lt=r=>RANKS.indexOf(r)>RANKS.indexOf("A"),red=[];
+  if(lt(a.dist))red.push(`距離（${cat}）${a.dist}→A`);
+  if(lt(a.surf))red.push(`バ場（${c.surface}）${a.surf}→A`);
+  if(lt(a.style))red.push(`脚質（${st.style}）${a.style}→A`);
+  const blue=deficit>0?`スタミナ（デッキ・固有・選んだ継承固有の回復だけでは、中盤で持久力温存が起きる。体力が約${Math.round(deficit)}足りない）`:"スピード（持久力温存は起きない見込み）";
+  // 因子化する白スキルの優先度（超優先15件・優先20件・通常25件まで）
+  const facV=x=>x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj;
+  const inhW=d.reps.filter(x=>x.route.kind==="inh"&&x.tier!=="none"&&!(S.passSpdOnly&&x.statPassive)&&!(S.lotteryOut&&isLottery(x.s))).sort((q,r)=>facV(r)-facV(q));
+  const fac={top:inhW.filter(x=>x.tier==="must").slice(0,15),high:inhW.filter(x=>x.tier==="rec").slice(0,20),norm:inhW.filter(x=>x.tier==="opt").slice(0,25)};
+  return{noHeal,withOwn,deficit,deficitNoHeal,deficitRush,unit,rushChance:withOwn.rushedChance,accelOwn,accelInh,accel,cands,recIds,sel,red,blue,fac,farm:farmDeck(fac),healPlans};
+}
+
+// ===== おすすめのスキル構成：SPの予算内で、効果を積み上げて1個ずつ選ぶ（同じ区間で重なる効果は、追加分だけで評価） =====
+const HINT_DISC=[0,.1,.2,.3,.35,.4];
+// コンディションによる必要SPの割引（勉強家4%・切れ者10%。重複しない）
+const COND_DISC={通常:0,勉強家:.04,切れ者:.1};
+const condDisc=()=>COND_DISC[S.spCond]??0;
+function skillCost(x){
+  if(!x.route)return null;
+  if(x.route.evo){const b=SK[x.route.evo.baseId];return b?skillCost({s:b,route:x.route.baseRoute,chain:x.chain}):0}
+  const lab=x.route.label;
+  if(lab==="固有スキル"||lab==="初期スキル")return 0;
+  const lvBase=x.route.kind==="inh"?S.hintInh:/^(覚醒|シナリオ)/.test(lab)?0:S.hintOwn;
+  const d=lv=>Math.min(.9,(HINT_DISC[Math.max(0,Math.min(5,lv|0))]||0)+condDisc());
+  // 金スキルは、イベントで取るならそのLv、それ以外は「金スキルの想定ヒントLv」。白スキルは想定ヒントLv
+  const lvOf=k=>k.id===x.s.id&&x.route.evLv!=null?x.route.evLv:k.rarity==="gold"?Math.min(lvBase,S.hintGold??1):lvBase;
+  return (x.chain||[x.s]).reduce((t,k)=>t+Math.round((k.sp||0)*(1-d(lvOf(k)))),0);
+}
+function buildLoadout(p,d,m){
+  const ctx=p.ctx,budget=st.spBudget??3000;
+  const isPassive=s=>(s.ep||[]).length>0&&s.ep.every(q=>q.baseTime<0);
+  const valOf=(x,plans,baseRun)=>{const r=UmaSim.skillBashin(ctx,x.s,{base:baseRun,basePlans:plans,samples:Math.min(6,S.samples)});
+    return r.ok?mOf(x.s,r)*(isPassive(x.s)?1:p.rate)*(x.field?.5:1)*(r.folded?1:(r.prob??1)):0};
+  const inhCost=Math.round(200*(1-Math.min(.9,(HINT_DISC[S.hintInh]||0)+condDisc())));
+  let plans=m.sel.flatMap(u=>UmaSim.planSkill(ctx,u.s,.5));
+  let used=m.sel.length*inhCost;
+  const picked=[];
+  // 持久力温存の回避に必要な回復は先に入れる
+  for(const x of d.reps.filter(x=>x.conserveNeed)){const c=skillCost(x)??0;plans=plans.concat(UmaSim.planSkill(ctx,x.s,.5));used+=c;picked.push({x,cost:c,gain:null,forced:true})}
+  let baseRun=UmaSim.run(ctx,plans),ver=0;
+  const q=d.reps.filter(x=>x.r.ok&&x.route&&!x.conserveNeed&&x.exp>0.02&&!(S.lotteryOut&&isLottery(x.s))).map(x=>({x,cost:skillCost(x)??0,ub:x.exp,ver:-1}));
+  const score=e=>e.cost>0?e.ub/e.cost:e.ub*1e6;
+  while(q.length&&picked.length<60){
+    q.sort((a,b)=>score(b)-score(a));
+    const e=q.shift();
+    if(used+e.cost>budget)continue;
+    if(e.ver!==ver){e.ub=valOf(e.x,plans,baseRun);e.ver=ver;if(q.length&&score(e)<score(q[0])){q.push(e);continue}}
+    if(e.ub<0.05)continue;
+    plans=plans.concat(UmaSim.planSkill(ctx,e.x.s,.5));used+=e.cost;ver++;baseRun=UmaSim.run(ctx,plans);
+    picked.push({x:e.x,cost:e.cost,gain:e.ub});
+  }
+  const total=picked.reduce((t,k)=>t+(k.gain||0),0);
+  return{picked,used,budget,total,inhN:m.sel.length,inhCost};
+}
+
+function spText(x){
+  if(x.s.owner)return"";
+  return x.lower&&x.lower.length?`計${x.chainSp}pt（${x.lower.join("・")}込み）`:`${x.s.sp}pt`;
+}
+// 終盤接続：中盤に発動した速度スキル（目標速度アップ）の効果が残ったまま終盤に入ること。
+// 終盤開始時に速度が上がった状態から加速が始まるので、最高速度に早く届く（獲得バ身の計算には、走らせた結果として最初から入っている）。
+// 加速中に発動した速度スキルはほぼ効かないため、終盤に入ってからの発動は数えない。ランダム位置のものは発動位置を8通り試して割合を出す
+function connectInfo(ctx,s){
+  if(!["speed","forward"].includes(s.effect)||LATE.includes(s.zone))return null;
+  const L=ctx.phaseIv[2][0],n=8;let hit=0,any=false,rem=0;
+  for(let i=0;i<n;i++){
+    const pl=UmaSim.planSkill(ctx,s,(i+.5)/n).filter(q=>!q.passive&&q.pos!==Infinity&&(q.effects||[]).some(e=>e.target===27));
+    if(!pl.length)continue;any=true;
+    const ok=pl.filter(q=>q.pos<L&&q.pos+q.dur*ctx.V0>L);
+    if(ok.length){hit++;rem+=Math.max(...ok.map(q=>(q.pos+q.dur*ctx.V0-L)/ctx.V0))}
+  }
+  if(!any||hit<1)return null;
+  return{rate:hit/n,rem:rem/hit};
+}
+function skRow(x){
+  const s=x.s,meta=[EFFECT_JA[s.effect]||"その他"];
+  if(ZONE_JA[s.zone])meta.push(ZONE_JA[s.zone]);
+  meta.push(x.r.random?"ランダム位置":"確定位置");
+  if(x.r.random&&x.r.ok)meta.push(`${x.r.min.toFixed(2)}〜${x.r.max.toFixed(2)}バ身`);
+  const sp=spText(x);if(sp)meta.push(sp);
+  if(x.conserveNeed)meta.push("持久力温存の回避に必要");
+  if(x.inLoadout)meta.push("おすすめ構成に入る");
+  if(x.conn)meta.push((x.conn.rate>=0.99?"終盤接続":`終盤接続（約${Math.round(x.conn.rate*100)}%）`)+`・終盤に入るとき効果が残り約${x.conn.rem.toFixed(1)}秒`);
+  if(isLottery(x.s))meta.push(S.lotteryOut?"抽選で発動するため、おすすめ構成・因子化の候補から除外":"抽選で発動（期待値で評価）");
+  if(x.route&&x.route.evo&&x.route.evo.conds.length){const by={};x.route.evo.conds.forEach(c=>(by[c.n]=by[c.n]||[]).push(c.text));
+    meta.push("進化条件（いずれか1つ）："+x.route.evo.conds.map(c=>c.text).join(" ／ "))}
+  {const c=skillCost(x);if(c!=null&&c>0)meta.push(`見積もり${c}pt`)}
+  if(x.marg!=null&&x.marg<x.expAdj-0.005)meta.push(`手持ちのスキルと合わせると${x.marg.toFixed(2)}バ身`);
+  if(x.statPassive&&S.passSpdOnly&&x.route&&x.route.kind==="inh")meta.push("スピード以外のステータス上昇のため因子化の候補外");
+  if(x.field)meta.push("出走メンバー次第（期待値は半分で計算）");
+  if(x.r.ok&&(x.r.unknown||[]).some(k=>/^popularity/.test(k)))meta.push("人気が条件（想定人気が未定のため満たす前提で計算）");
+  if(S.randAccelSafe&&x.s.effect==="accel"&&x.r.ok&&x.r.random)meta.push("ランダム位置の加速のため下位25%の結果で評価");
+  if(x.r.ok&&(x.r.posKeys||[]).includes("post_number"))meta.push("枠番はくじ引きの確率で計算");
+  if(x.r.ok&&x.r.prob<0.995)meta.push((x.r.posKeys&&x.r.posKeys.length?"順位・位置条件の成立率":"発動確率")+`約${Math.round(x.r.prob*100)}%込み`);
+  const route=x.route||{label:"デッキ外",kind:"no"};
+  const cs=x.conn?(x.conn.rate>=0.99?" conn-sure":" conn-maybe"):"";
+  const cl=x.conn?(x.conn.rate>=0.99?"終盤接続 確定":`接続 約${Math.round(x.conn.rate*100)}%`):"";
+  return `<div class="sk r-${s.rarity}${cs}"><span class="ico i-${s.effect}">${ICONS[s.effect]||ICONS.other}</span>
+    <div class="nm"${cl?` data-conn="${cl}"`:""}>${esc(s.name)}</div><div class="sc">${(x.expAdj??x.exp).toFixed(2)}<small>バ身</small></div>
+    <div class="ds"><span>${meta.map(esc).join("・")}</span><span class="src src-${route.kind}">${esc(route.label)}</span></div></div>`}
+
+let computing=false;
+async function computeAndRender(){
+  if(computing)return;
+  if(!planDirty&&lastPlan){renderSheet(lastPlan);return}
+  computing=true;
+  $("#sheet").innerHTML=`<div class="progress"><span>獲得バ身を計算中…</span><div class="bar"><i id="pbar"></i></div></div>`;
+  try{
+    const p=await computePlan(f=>{const b=$("#pbar");if(b)b.style.width=Math.round(f*100)+"%"});
+    lastPlan=p;planDirty=false;renderSheet(p);
+  }catch(e){console.error(e);$("#sheet").innerHTML=`<div class="progress" style="color:var(--must)">計算中にエラーが起きました。条件を変えてもう一度お試しください。</div>`}
+  finally{computing=false}
+}
+
+// 折りたたみ（開閉の状態はこの端末に記憶）
+const SEC_OPEN=LS.get("umaplan2.sec",{});
+const sec=(id,title,body,def=true)=>`<details class="sec" data-sec="${id}"${(SEC_OPEN[id]??def)?" open":""}><summary><span class="ribbon">${title}</span><span class="chev" aria-hidden="true"></span></summary><div class="sec-b">${body}</div></details>`;
+function renderSheet(p){
+  const d=derive(p);
+  const m=summarize(p,d);persist();
+  for(const x of d.reps)x.conn=x.r.ok?connectInfo(p.ctx,x.s):null;
+  const connList=d.reps.filter(x=>x.conn&&x.route).sort((a,b)=>(b.conn.rate>=0.99)-(a.conn.rate>=0.99)||(a.route.kind==="own"?0:1)-(b.route.kind==="own"?0:1)||b.conn.rate-a.conn.rate||b.expAdj-a.expAdj);
+  const connInh=m.cands.map(u=>({u,c:u.r.ok?connectInfo(p.ctx,u.s):null})).filter(o=>o.c);
+  const connHtml=`<p class="hint">中盤に発動した速度スキルの効果が残ったまま、終盤（${Math.round(p.ctx.phaseIv[2][0])}m地点）に入れるスキルです。速度が上がった状態からラストスパートの加速が始まるため、最高速度に早く届きます（期待バ身にはこの効果も入っています）。ランダム位置のものは、発動位置しだいでつながる割合を出しています。</p>
+    ${connList.length?`<ul class="ulist clist">${connList.filter(x=>x.conn.rate>=0.99).concat(connList.filter(x=>x.conn.rate<0.99).slice(0,10)).map(x=>`<li><span><b>${esc(x.s.name)}</b><small style="display:block;color:var(--muted)">${esc(x.route.label)}</small></span><span>${x.conn.rate>=0.99?'<span class="cbadge sure">確定</span>':'<span class="cbadge maybe">約'+Math.round(x.conn.rate*100)+'%</span>'}残り${x.conn.rem.toFixed(1)}秒・${(x.expAdj??x.exp).toFixed(2)}バ身</span></li>`).join("")}</ul>`:'<p class="hint">該当するスキルはありません。</p>'}
+    ${connInh.length?`<p class="lbl" style="margin-top:8px">継承固有の候補</p><ul class="ulist">${connInh.map(o=>`<li><span><b>${esc(o.u.s.name)}</b><small style="display:block;color:var(--muted)">${esc(o.u.x.name)}</small></span><span>${o.c.rate>=0.99?'<span class="cbadge sure">確定</span>':'<span class="cbadge maybe">約'+Math.round(o.c.rate*100)+'%</span>'}残り${o.c.rem.toFixed(1)}秒・${o.u.exp.toFixed(2)}バ身</span></li>`).join("")}</ul>`:""}`;
+  const L=buildLoadout(p,d,m);
+  for(const x of d.reps)x.inLoadout=false;
+  L.picked.forEach(k=>k.x.inLoadout=true);
+  const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
+    <div class="kpis"><div class="kpi"><span class="k">使うSP</span><span class="v">${L.used}<small> / ${L.budget}pt</small></span><span class="d">${L.inhN?`継承固有${L.inhN}個（1個${L.inhCost}pt）を含む。`:""}残り${Math.max(0,L.budget-L.used)}pt</span></div>
+    <div class="kpi"><span class="k">構成全体の期待バ身</span><span class="v">${L.total.toFixed(2)}<small>バ身</small></span><span class="d">選んだ継承固有・温存回避の回復の分は含まない</span></div></div>
+    <ol class="ulist lout">${L.picked.map(k=>`<li><span><b>${esc(k.x.s.name)}</b><small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
+  const w=m.withOwn,ok=m.deficit<=0,okNo=m.deficitNoHeal<=0;
+  const stState=okNo?'<span class="state st-ok">回復なしで起きない</span>':ok?'<span class="state st-warn">回復スキルで回避できる</span>':'<span class="state st-ng">起きる</span>';
+  const conserveNote=w.conserveAt!=null?`中盤の約${Math.round(w.conserveAt)}m地点で体力が約${Math.round(m.deficit)}不足（金回復 約${(m.deficit/m.unit).toFixed(1)}個分、白回復なら約${(m.deficit/m.unit*5.5/1.5).toFixed(1)}個分）。この地点より前に発動する回復が必要`:(m.deficitNoHeal>0?`回復なしだと約${Math.round(m.deficitNoHeal)}不足（金回復 約${(m.deficitNoHeal/m.unit).toFixed(1)}個分）するが、入手できる回復で補える`:"中盤を通して、残りを全力で走り切る体力が残る");
+  const A=m.accel,accOk=A.ok;
+  const rd=r=>r.reachPos!=null?`終盤に入ってから約${Math.round(r.reachPos-r.lateStart)}m（${r.reachT.toFixed(1)}秒）`:"終盤のうちに届かない";
+  const compNote=[w.spotHp>0?`位置取り争いで約${Math.round(w.spotHp)}`:"",w.secureLeadHp>0?`リード確保（期待${w.secureLeadN.toFixed(1)}回）で約${Math.round(w.secureLeadHp)}`:""].filter(Boolean).join("、");
+  const tiers=[["must","必須","var(--must)"],["rec","推奨","var(--rec)"],["opt","余裕があれば","var(--opt)"],["none","効果が小さい","var(--none)"]];
+  const groups=tiers.map(([t,l,col])=>{const rs=d.reps.filter(x=>x.tier===t).sort((a,b)=>b.expAdj-a.expAdj);if(!rs.length)return"";
+    return `<details class="tier sub" data-sec="tier-${t}"${(SEC_OPEN["tier-"+t]??(t==="must"||t==="rec"))?" open":""}><summary class="tier-h"><span class="tg" style="background:${col}">${l}</span><span class="n">${rs.length}件</span><span class="chev" aria-hidden="true"></span></summary><div class="tier">${rs.map(skRow).join("")}</div></details>`}).join("");
+  const facRow=(label,cls,list,cap)=>`<div class="facrow"><span class="ftier ${cls}">${label}<small>${list.length}/${cap}</small></span><div class="chips">${list.length?list.map(x=>`<span class="chip">${esc(x.s.name)} <b>${(x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj).toFixed(2)}</b></span>`).join(""):'<span class="hint">なし</span>'}</div></div>`;
+  const farm=m.farm;
+  const farmHtml=farm&&farm.picked.length?`<p class="hint">因子周回のデッキ案です。因子化したいスキルのヒントを持つサポカを、超優先＝3点・優先＝2点・通常＝1点の重みで、カバーが広くなるように6枚選んでいます（○と◎は同じ系統として扱います）。カードの育成性能は考慮していないので、編成の土台として使ってください。</p>
+    <div class="deck farm">${farm.picked.map((c,i)=>`<div class="slot"><div class="top"><span class="no">${i+1}</span><span class="type" style="background:${TYPE_COLOR[c.sp.type]||"#999"}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${c.newG.map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
+    <p class="hint">カバー率：超優先 ${farm.tc.top.hit}/${farm.tc.top.all}・優先 ${farm.tc.high.hit}/${farm.tc.high.all}・通常 ${farm.tc.norm.hit}/${farm.tc.norm.all}</p>
+    ${farm.others.length?`<details class="tier sub" data-sec="farm-more"${(SEC_OPEN["farm-more"]??false)?" open":""}><summary class="tier-h"><span class="tg" style="background:var(--opt)">その他の候補</span><span class="n">${farm.others.length}枚</span><span class="chev" aria-hidden="true"></span></summary>
+      <p class="hint">デッキ案に入らなかったカードのうち、因子化したいスキルのヒントを2種類以上持つものです（入れ替え候補）。</p>
+      <div class="deck farm">${farm.others.map(c=>`<div class="slot"><div class="top"><span class="type" style="background:${TYPE_COLOR[c.sp.type]||"#999"}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span><span class="hint" style="margin-left:auto">${c.g.size}種類</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${[...c.g].sort((a,b)=>farm.w(b)-farm.w(a)).map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
+    </details>`:""}`:'<p class="hint">因子化したいスキルがないため、デッキ案はありません。</p>';
+  const facHtml=`<p class="hint">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントでは取れず、白因子で継承したい白スキルです（数字は期待バ身。手持ちのスキルと合わせて走らせたときに増える分）。${S.passSpdOnly?"スピード以外のステータスを上げるパッシブは除いています。":""}超優先＝期待バ身${S.must}以上（最大15件）、優先＝${S.rec}以上（最大20件）、通常＝${S.opt}以上（最大25件）。</p>${facRow("超優先","ft-top",m.fac.top,15)}${facRow("優先","ft-high",m.fac.high,20)}${facRow("通常","ft-norm",m.fac.norm,25)}`;
+  const dd=new Date(),ds=`${dd.getFullYear()}/${dd.getMonth()+1}/${dd.getDate()}`;
+  const stat=[["spd","スピード"],["sta","スタミナ"],["pow","パワー"],["gut","根性"],["wit","賢さ"]];
+  const full=st.inherit.length>=6;
+  const inhBtn=u=>{const on=st.inherit.includes(u.s.id),rec=m.recIds.includes(u.s.id);
+    return `<li><button type="button" class="ipick${on?" on":""}" data-inh="${esc(u.s.id)}" aria-pressed="${on}"${!on&&full?" disabled":""}><span class="ck" aria-hidden="true">${on?"✓":""}</span><span class="tx">${esc(u.s.name)}${u.evo?'<span class="rec" style="background:#a77fd9">継承進化</span>':""}${rec?'<span class="rec">おすすめ</span>':""}<small>${esc(u.x.title)} ${esc(u.x.name)}・${esc(EFFECT_JA[u.s.effect]||"")}</small></span><b>${(u.mexp??u.exp).toFixed(2)}バ身</b></button></li>`};
+  const inhList=m.cands.map(inhBtn).join("");
+  const ftb=p.ctx.ft.on?UmaSim.run(p.ctx,p.ownHealPlans):null;
+  const spdNote=p.ctx.ft.on
+    ?`<p class="hint" style="color:var(--opt)">全開スパートを仮モデルで計算しています（上昇量の上限${S.ftGain}m/s・伸びの係数${S.ftCoef}）。${ftb&&ftb.ftStart!=null?`残り約${Math.round(p.c.dist-ftb.ftStart)}mで発動し、ゴールまでに最高速度が約${ftb.ftGain.toFixed(2)}m/s上がる想定です。`:"この条件では全力スパートの最高速度に届かないか、スピードが2000以下のため発動しない想定です。"}</p>`
+    :(st.stats.spd>2000?`<p class="hint" style="color:var(--opt)">スピード2001以上で起きる「全開スパート」は計算に含めていません。設定タブで仮モデルをオンにすると計算に入れられます。</p>`:"");
+  const guideHtml=d.guide.map(g=>`<div class="gcard"><div class="gh"><span class="type" style="background:${TYPE_COLOR[g.card.type]||"#999"}">${esc(g.card.type)}</span><b>${esc(g.card.name)}</b><span class="hint">「${esc(g.ev.title)}」${esc(g.ev.kind)}</span></div>${g.opts.map(o=>{const isSel=o===g.sel,isRec=o===g.rec&&g.opts.length>1&&o.best>0;
+    const body=`<span class="gt">${o.text?esc(o.text):"（選択肢なし）"}${isRec?'<span class="rec">おすすめ</span>':""}${isSel&&g.opts.length>1?'<span class="selp">取得予定</span>':""}</span><span class="gs">${o.res.map(r=>r.skills.length?r.skills.map(k=>`${o.multi?(r.pattern===1?"成功：":"失敗："):""}${esc(k.s.name)}${k.link?"（シナリオリンク）":` Lv${k.lv}`}${k.exp>0?`（${k.exp.toFixed(2)}バ身）`:"（このレースでは効果なし）"}`).join("、"):(o.multi?(r.pattern===1?"成功：":"失敗："):"")+"スキルなし").join("<br>")}</span>`;
+    return g.opts.length>1?`<button type="button" class="gopt pick-opt${isSel?" best":""}" data-evk="${esc(g.key)}" data-evi="${o.i}" aria-pressed="${isSel}">${body}</button>`:`<div class="gopt best">${body}</div>`}).join("")}</div>`).join("");
+  $("#sheet").innerHTML=`
+  <div class="sh-top">
+    <span class="ev">${esc(st.ev)}</span>
+    <h2>${esc(p.c.track)} ${esc(p.c.surface)}${p.c.dist}m ／ ${esc(p.ch.name)}</h2>
+    <p>${esc(p.ch.title)}・${esc(st.style)}・${esc(p.scName)}・${esc(st.ground)}・${esc(st.weather)}・${esc(st.season)}　${ds}作成</p>
+  </div>
+  <div class="sh-b">
+    <div style="display:grid;gap:8px">
+      <div class="aptrow"><span class="k">適性</span><span class="apt">${rk(p.a.surf)}${esc(p.c.surface)}</span><span class="apt">${rk(p.a.dist)}${p.cat}</span><span class="apt">${rk(p.a.style)}${esc(st.style)}</span></div>
+      <div class="stats">${stat.map(([k,l])=>`<div class="stat"><span class="nm" style="background:var(--c-${k})">${l}</span><span class="val">${st.stats[k]}</span></div>`).join("")}</div>
+      <div class="chips">${p.deckCards.map(cd=>`<span class="chip" style="background:${TYPE_COLOR[cd.type]||"#999"};color:#fff">${esc(cd.name)}</span>`).join("")||'<span class="chip">デッキ未設定</span>'}</div>
+      ${spdNote}
+    </div>
+    ${sec("summary","判定サマリー",`<div class="kpis">
+      <div class="kpi"><span class="k">スタミナ（持久力温存）</span><span class="v">${ok?"起きない":"−"+Math.round(m.deficit)}</span>
+        <span class="d">${stState} ${conserveNote}。掛かり率${(m.rushChance*100).toFixed(1)}%を期待値で反映。${compNote?`位置取りの消費：${compNote}。`:""}${m.deficitRush>0?`<br>掛かりが最大12秒続くと約${Math.round(m.deficitRush)}不足（金回復 約${(m.deficitRush/m.unit).toFixed(1)}個分）`:"<br>掛かりが最大12秒続いても起きない"}</span></div>
+      <div class="kpi"><span class="k">終盤の加速</span><span class="v">${A.reach1.reachPos!=null?Math.round(A.reach1.reachPos-A.reach1.lateStart)+"<small>mで最高速度</small>":"届かない"}</span>
+        <span class="d">${accOk?'<span class="state st-ok">足りる</span>':'<span class="state st-ng">足りない</span>'} 加速スキルなしだと${rd(A.reach0)}で最高速度に届く。手持ちの加速${m.accelOwn}個で${rd(A.reach1)}に短縮${A.rand?`（ランダム位置の加速${A.rand}個は数えていない）`:""}。白因子の加速をもう1個足したときの効果は最大${A.bestNext.toFixed(2)}バ身${accOk?`（推奨の${S.rec}バ身未満）`:`（推奨の${S.rec}バ身以上なので足す価値あり。候補${m.accelInh}個）`}</span></div>
+      <div class="kpi"><span class="k">白因子で拾うスキル</span><span class="v">${m.fac.top.length}<small> 超優先</small> ${m.fac.high.length}<small> 優先</small></span><span class="d">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントで取れない白スキルのうち、効果の大きいもの</span></div>
+    </div>`)}
+    ${sec("loadout","おすすめのスキル構成",loadHtml)}
+    ${sec("connect","終盤接続するスキル",connHtml)}
+    ${sec("factors","因子化するスキル",facHtml)}
+    ${sec("farm","因子周回のデッキ案",farmHtml,false)}
+    ${sec("design","因子設計",`<div class="factor">
+      <div class="frow"><span class="fpill fp-blue">青因子</span><span>${esc(m.blue)}</span></div>
+      <div class="frow"><span class="fpill fp-red">赤因子</span><span>${m.red.length?m.red.map(esc).join("、"):"適性はすべてA以上。S狙いは任意"}</span></div>
+      <div class="frow"><span class="fpill fp-white">白因子</span><span>「因子化するスキル」を参照</span></div>
+      <div class="frow"><span class="fpill fp-uniq">継承固有</span><span><span class="hint">親・祖父母に使う最大6件を選んでください（選択中 ${st.inherit.length}/6）。選んだ回復・加速はスタミナと加速の判定に入ります。数字は、手持ちのスキル（推奨以上）と合わせて走らせたときに増える分で、おすすめは効果が重ならないように1件ずつ積み上げて選んでいます。</span>
+        <span class="btnrow" style="margin:6px 0"><button type="button" class="btn sm" id="inhRec">おすすめ6件を選ぶ</button><button type="button" class="btn sm" id="inhAny">ほかのウマ娘から選ぶ</button>${st.inherit.length?'<button type="button" class="btn sm" id="inhClear">選択を外す</button>':""}</span>
+        ${m.cands.length?`<ul class="ulist ilist">${inhList}</ul>`:"有効な候補なし"}</span></div>
+    </div>`)}
+    ${d.guide.length?sec("guide","イベントの選び方（サポカ・シナリオ）",`<p class="hint">金スキルが取れるイベントだけを表示しています。選択肢をタップすると取得予定を変更できます。初期値はおすすめの選択肢で、ここに出ていないイベントもおすすめの選択肢を取る前提で判定しています。</p><div class="guide">${guideHtml}</div>`):""}
+    ${sec("skills","スキル判定",`<div style="display:grid;gap:12px">${groups}
+      <p class="hint">同じ系統（○→◎→金）は、入手できる段階のうち期待バ身が最も高いものを1行で表示しています。上の段階を取るには下の段階も必要なため、SPは下位込みの合計です。持久力温存の回避に必要な回復は必須に入れています。このレースで発動しないスキル：${p.dead.length}件（表示を省略）</p>
+    </div>`)}
+    <p class="foot">期待バ身＝獲得バ身×発動率（賢さ${st.stats.wit}で約${Math.round(p.rate*100)}%）。1人走行の近似計算です。コース補正ステータス（スピード×${p.courseMod.toFixed(2)}）・掛かり・下り坂加速・賢さの揺らぎは期待値で反映し、位置取り争い・リード確保の体力消費は設定の値で反映しています（ブロックは含みません）。全開スパートは${p.ctx.ft.on?"仮モデルで反映しています":"含みません"}。データ出典：${esc(D.meta.source)}（${esc((D.meta.fetchedAt||"").slice(0,10))}取得）、サポカのイベントの照合にGameTora、開催イベントの条件にgamebiz（Cygames発表の転載）とU-tools、シナリオの上限ステータスに神ゲー攻略。</p>
+  </div>`;
+  $("#sheet").querySelectorAll("details[data-sec]").forEach(el=>el.addEventListener("toggle",()=>{SEC_OPEN[el.dataset.sec]=el.open;LS.set("umaplan2.sec",SEC_OPEN)}));
+  $("#sheet").querySelectorAll("[data-inh]").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.inh,i=st.inherit.indexOf(id);
+    if(i>=0)st.inherit.splice(i,1);else if(st.inherit.length<6)st.inherit.push(id);
+    renderSheet(p);
+  }));
+  $("#sheet").querySelectorAll("[data-evk]").forEach(b=>b.addEventListener("click",()=>{st.evChoice[b.dataset.evk]=+b.dataset.evi;renderSheet(p)}));
+  const r1=$("#inhRec");if(r1)r1.addEventListener("click",()=>{st.inherit=m.recIds.slice(0,6);renderSheet(p)});
+  const r2=$("#inhClear");if(r2)r2.addEventListener("click",()=>{st.inherit=[];renderSheet(p)});
+  const r3=$("#inhAny");if(r3)r3.addEventListener("click",()=>{
+    const items=p.inhAll.map(u=>({u,search:`${u.s.name}${u.x.name}${u.x.title}${u.x.nickname||""}`}));
+    openPicker({title:"継承固有を選ぶ",items,render:it=>`<span style="flex:1"><span class="t">${esc(it.u.x.title)} ${esc(it.u.x.name)}</span><span class="n">${esc(it.u.s.name)}</span></span><b style="white-space:nowrap">${it.u.r.ok?it.u.exp.toFixed(2)+"バ身":"発動しない"}</b>`,
+      onPick:it=>{if(!st.inherit.includes(it.u.s.id)){if(st.inherit.length>=6){toast("継承固有は6件までです。先にどれかを外してください");return}st.inherit.push(it.u.s.id)}renderSheet(p)}});
+  });
+}
+
+/* ---------- 保存 ---------- */
+let dl=null;(async()=>{try{dl=window.claude&&window.claude.use?await window.claude.use("downloads"):null}catch(e){dl=null}})();
+function fname(ext){const c=course();return `育成プラン_${c.track}${c.surface}${c.dist}_${st.style}.${ext}`}
+function downloadFallback(blob,name){try{const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();return true}catch(e){return false}}
+async function doSave(kind){
+  if(!lastPlan){toast("先にプランを作成してください");return}
+  const btns=[$("#btnPng"),$("#btnPdf")];btns.forEach(b=>b.disabled=true);
+  try{
+    const closed=[...$("#sheet").querySelectorAll("details:not([open])")];closed.forEach(d=>d.open=true);
+    let canvas;try{canvas=await html2canvas($("#sheet"),{scale:2,backgroundColor:"#ffffff",useCORS:true})}finally{closed.forEach(d=>d.open=false)}
+    let blob;
+    if(kind==="png"){blob=await new Promise(r=>canvas.toBlob(r,"image/png"))}
+    else{const {jsPDF}=window.jspdf;const pdf=new jsPDF({unit:"mm",format:"a4"});
+      const M=10,iw=190,ih=canvas.height*iw/canvas.width,ph=277,img=canvas.toDataURL("image/jpeg",.92);let y=0;
+      while(y<ih){if(y>0)pdf.addPage();pdf.addImage(img,"JPEG",M,M-y,iw,ih);y+=ph}
+      blob=pdf.output("blob")}
+    if(dl){try{await dl.save({filename:fname(kind),data:blob});toast("保存しました");$("#exportOut").innerHTML="";return}
+      catch(e){if(e&&e.code==="declined"){toast("保存をキャンセルしました");return}}}
+    else if(!window.claude&&downloadFallback(blob,fname(kind))){toast("保存しました");return}
+    $("#exportOut").innerHTML=`<img alt="育成プランシート" src="${canvas.toDataURL("image/png")}">`;
+    $("#exportMsg").textContent="この環境ではファイルを直接保存できません。下の画像を長押しして保存してください。";
+  }catch(e){$("#exportMsg").textContent="画像の作成に失敗しました。ページを再読み込みしてもう一度お試しください。"}
+  finally{btns.forEach(b=>b.disabled=false)}
+}
+$("#btnPng").addEventListener("click",()=>doSave("png"));
+$("#btnPdf").addEventListener("click",()=>doSave("pdf"));
+
+function renderSaved(){const list=LS.get("umaplan2.saved",[]);
+  $("#savedList").innerHTML=list.length?list.map((x,i)=>`<div class="saved-row"><span>${esc(x.name)}</span><span class="btnrow"><button class="btn sm" data-load="${i}">開く</button><button class="btn sm" data-del="${i}">削除</button></span></div>`).join(""):'<p class="hint">まだ控えはありません。</p>';
+  $("#savedList").querySelectorAll("[data-load]").forEach(b=>b.addEventListener("click",()=>{st=Object.assign(structuredClone(DEFAULT_STATE),list[+b.dataset.load].state);planDirty=true;persist();renderAll();computeAndRender();toast("控えを開きました")}));
+  $("#savedList").querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{list.splice(+b.dataset.del,1);LS.set("umaplan2.saved",list);renderSaved()}));}
+/* ---------- 共有コード（圧縮したJSONをURL安全なbase64にする） ---------- */
+const b64u={enc:u8=>{let s="";for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode(...u8.subarray(i,i+0x8000));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")},
+  dec:t=>{const s=atob(t.replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(s,c=>c.charCodeAt(0))}};
+async function packPlan(){
+  const keep=["ev","courseId","scenario","ground","weather","season","charaId","style","apt","stats","mood","spBudget","deck","inherit","evChoice","field"];
+  const o={v:1,st:Object.fromEntries(keep.map(k=>[k,st[k]]))};
+  const raw=new TextEncoder().encode(JSON.stringify(o));
+  if(typeof CompressionStream==="function"){
+    const cs=new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+    return "UMAPLAN1:"+b64u.enc(new Uint8Array(await new Response(cs).arrayBuffer()));
+  }
+  return "UMAPLAN0:"+b64u.enc(raw);
+}
+async function unpackPlan(code){
+  const m=String(code).trim().match(/^UMAPLAN([01]):([A-Za-z0-9_-]+)$/);
+  if(!m)throw new Error("形式が違います");
+  let bytes=b64u.dec(m[2]);
+  if(m[1]==="1"){
+    if(typeof DecompressionStream!=="function")throw new Error("このブラウザでは開けません");
+    const ds=new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    bytes=new Uint8Array(await new Response(ds).arrayBuffer());
+  }
+  const o=JSON.parse(new TextDecoder().decode(bytes));
+  if(!o||!o.st)throw new Error("中身が読めません");
+  return o.st;
+}
+$("#btnShare").addEventListener("click",async()=>{
+  const code=await packPlan();const out=$("#shareOut");out.value=code;out.hidden=false;
+  try{await navigator.clipboard.writeText(code);toast("共有コードをコピーしました")}
+  catch(e){out.focus();out.select();toast("コードを選択しました。コピーしてください")}
+});
+$("#btnShareOpen").addEventListener("click",async()=>{
+  try{const s2=await unpackPlan($("#shareIn").value);
+    st=Object.assign(structuredClone(DEFAULT_STATE),s2);
+    if(!CO[st.courseId])st.courseId=DEFAULT_STATE.courseId;if(!CH[st.charaId])st.charaId=D.charas[0].id;
+    st.deck=(st.deck||[]).map(id=>SP[id]?id:null).concat([null,null,null,null,null,null]).slice(0,6);
+    planDirty=true;persist();renderAll();computeAndRender();$("#shareIn").value="";toast("共有されたプランを開きました")}
+  catch(e){toast("共有コードを読めませんでした（"+e.message+"）")}
+});
+$("#btnSavePlan").addEventListener("click",()=>{const c=course();const n=$("#planName").value.trim()||`${c.track}${c.dist} ${chara().name} ${st.style}`;
+  const list=LS.get("umaplan2.saved",[]);list.unshift({name:n,state:structuredClone(st)});LS.set("umaplan2.saved",list.slice(0,30));$("#planName").value="";renderSaved();toast("控えました")});
+
+/* ---------- 設定 ---------- */
+function renderSettings(){
+  const items=[["持久力温存の判定に足す予備（最大体力の%）","conserveMargin"],["必須の下限（バ身）","must"],["推奨の下限（バ身）","rec"],["余裕ありの下限（バ身）","opt"],["ランダム位置の試行回数","samples"]];
+  $("#coefInputs").innerHTML=items.map(([l,k])=>`<label class="f">${l}<input type="number" step="any" id="cf-${k}" value="${S[k]}"></label>`).join("");
+  $("#coefInputs").querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{const k=inp.id.slice(3),v=parseFloat(inp.value);if(isNaN(v))return;S[k]=k==="samples"?Math.max(1,Math.min(32,Math.round(v))):v;LS.set("umaplan2.settings",S);planDirty=true}));
+  renderFt();
+  $("#slBase").value=S.slBase;
+  $("#posExtraInputs").innerHTML=STYLES.map(k=>`<label class="f">${k}の追加消費（%）<input type="number" step="1" min="0" data-px="${k}" value="${(S.posExtra||{})[k]||0}"></label>`).join("");
+  $("#posExtraInputs").querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{const v=parseFloat(inp.value);if(isNaN(v)||v<0)return;S.posExtra=Object.assign({},S.posExtra,{[inp.dataset.px]:v});LS.set("umaplan2.settings",S);planDirty=true}));
+  seg($("#evoSeg"),["使う（所持・直親）","使わない"],S.inhEvo!==false?"使う（所持・直親）":"使わない",v=>{S.inhEvo=v!=="使わない";LS.set("umaplan2.settings",S);planDirty=true});
+  seg($("#posSeg"),["脚質どおりなら満たす","成立率で割り引く"],S.posStyle?"脚質どおりなら満たす":"成立率で割り引く",v=>{S.posStyle=v==="脚質どおりなら満たす";LS.set("umaplan2.settings",S);planDirty=true});
+  seg($("#lotSeg"),["期待値で評価","外す"],S.lotteryOut?"外す":"期待値で評価",v=>{S.lotteryOut=v==="外す";LS.set("umaplan2.settings",S);planDirty=true});
+  seg($("#randSeg"),["平均で評価","控えめに評価"],S.randAccelSafe?"控えめに評価":"平均で評価",v=>{S.randAccelSafe=v==="控えめに評価";LS.set("umaplan2.settings",S);planDirty=true});
+  seg($("#safeSeg"),["オフ","オン"],S.safe105?"オン":"オフ",v=>{S.safe105=v==="オン";LS.set("umaplan2.settings",S);planDirty=true});
+  seg($("#kireSeg"),["通常","勉強家","切れ者"],S.spCond||"通常",v=>{S.spCond=v;LS.set("umaplan2.settings",S)});
+  $("#hintOwn").value=S.hintOwn;$("#hintInh").value=S.hintInh;$("#hintGold").value=S.hintGold??1;
+  seg($("#passSeg"),["外さない","外す"],S.passSpdOnly?"外す":"外さない",v=>{S.passSpdOnly=v==="外す";LS.set("umaplan2.settings",S);planDirty=true});
+  if(D)$("#dataInfo").textContent=`読み込み中のデータ：${D.meta.source}（${(D.meta.fetchedAt||"").slice(0,10)}取得）。スキル${D.skills.length}件・育成ウマ娘${D.charas.length}件・サポートカード${D.supports.length}件・コース${D.courses.length}件。`;
+}
+function renderFt(){
+  seg($("#ftSeg"),["オフ","オン"],S.ftOn?"オン":"オフ",v=>{S.ftOn=v==="オン";LS.set("umaplan2.settings",S);planDirty=true});
+  $("#ftGain").value=S.ftGain;$("#ftCoef").value=S.ftCoef;
+}
+$("#ftGain").addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=0){S.ftGain=v;LS.set("umaplan2.settings",S);planDirty=true}});
+["hintOwn","hintInh","hintGold"].forEach(k=>$("#"+k).addEventListener("input",e=>{const v=parseInt(e.target.value,10);if(v>=0&&v<=5){S[k]=v;LS.set("umaplan2.settings",S)}}));
+$("#slBase").addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=0){S.slBase=v;LS.set("umaplan2.settings",S);planDirty=true}});
+$("#ftCoef").addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=0){S.ftCoef=v;LS.set("umaplan2.settings",S);planDirty=true}});
+$("#btnResetS").addEventListener("click",()=>{S=Object.assign({},DEFAULT_S,{posExtra:Object.assign({},DEFAULT_S.posExtra)});LS.set("umaplan2.settings",S);planDirty=true;renderSettings();toast("初期値に戻しました")});
+
+function renderAll(){renderRace();renderUma();renderDeck();renderSaved()}
+
+/* ---------- 起動 ---------- */
+(async()=>{
+  try{
+    const res=await fetch("data/planner-data.json");if(!res.ok)throw new Error("HTTP "+res.status);
+    D=await res.json();
+    NON_INH=new Set(((D.rules&&D.rules.nonInheritable)||[]).map(x=>String(x.id)));
+    SCN=((D.scenarios&&D.scenarios.scenarios)||[]);
+    // シナリオのスキルでも、サポカのヒント・イベントや育成ウマ娘のスキルで取れるもの（レースの真髄・体など）は、普通のスキルとして扱う
+    const elsewhere=new Set([...D.supports.flatMap(s=>[...s.skillIds,...(s.eventSkillIds||[])]),...D.charas.flatMap(c=>Object.keys(c.skillRanks||{}))]);
+    SCN.forEach(x=>x.sp.forEach(id=>{if(!elsewhere.has(String(id)))SCN_ALL.add(String(id))}));
+    if(!SCN.some(x=>x.id===st.scenario))st.scenario=SCN.length?SCN[SCN.length-1].id:null;
+    // 目標ステータスが初期値のままなら、選んでいるシナリオの上限にする
+    if(sameStats(st.stats,DEFAULT_STATE.stats)&&capsOf(scenario())){st.stats=capsOf(scenario());st.statsAuto=true}
+    D.skills.forEach(s=>SK[s.id]=s);
+    // 継承進化した継承固有（ID が 9＋1桁＋固有スキルID の8桁）
+    D.skills.forEach(s=>{if(/^9\d{7}$/.test(s.id)&&SK[s.id.slice(2)])EVO_INH.set(s.id.slice(2),s)});D.charas.forEach(c=>CH[c.id]=c);D.supports.forEach(s=>SP[s.id]=s);D.courses.forEach(c=>CO[c.id]=c);
+    D.charas.sort((a,b)=>String(b.publishedAt||"").localeCompare(String(a.publishedAt||"")));
+    D.supports.sort((a,b)=>String(b.publishedAt||"").localeCompare(String(a.publishedAt||"")));
+    if(!CO[st.courseId])st.courseId=(D.courses.find(c=>c.id==="10606")||D.courses[0]).id;
+    if(!CH[st.charaId]){const c=D.charas[0];st.charaId=c.id;st.style=STYLES.slice().sort((x,y)=>RANKS.indexOf(c.apt[x])-RANKS.indexOf(c.apt[y]))[0]}
+    if(!st.deck.some(id=>SP[id])){
+      // 初期デッキ：新しい順に、スピード2・スタミナ・パワー・賢さ・友人のSSRを入れておく
+      const pick=(t,n)=>D.supports.filter(s=>s.type===t&&s.rarity==="SSR").slice(0,n).map(s=>s.id);
+      st.deck=[...pick("スピード",2),...pick("スタミナ",1),...pick("パワー",1),...pick("賢さ",1),...pick("友人",1)].concat([null,null,null,null,null,null]).slice(0,6);
+    }
+    st.deck=st.deck.map(id=>SP[id]?id:null);
+    persist();
+    $("#dataBanner").textContent=`データ：${D.meta.source}（${(D.meta.fetchedAt||"").slice(0,10)}取得）。獲得バ身は1人走行の近似計算です。`;
+    renderAll();
+  }catch(e){
+    console.error(e);
+    $("#dataBanner").className="banner err";
+    $("#dataBanner").textContent="データを読み込めませんでした。通信状況を確認して、ページを再読み込みしてください。";
+  }
+})();
+})();
+</script>
+
+</body>
+</html>
