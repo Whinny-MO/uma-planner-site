@@ -426,7 +426,7 @@ const ICONS={
   forward:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h10"/><path d="M10 6l6 6-6 6"/><path d="M19 5v14"/></svg>',
   other:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>'
 };
-const DEFAULT_S={must:1.0,rec:0.5,opt:0.2,samples:8,ftOn:true,ftGain:1.0,ftCoef:0.1,conserveMargin:0,slBase:35,posExtra:{逃げ:17,先行:17,差し:17,追込:17},passSpdOnly:true,safe105:false,randAccelSafe:true,lotteryOut:true,posStyle:true,inhEvo:true,hintOwn:5,hintInh:5,hintGold:1,spCond:"通常",ver:6};
+const DEFAULT_S={must:1.0,rec:0.5,opt:0.2,samples:8,ftOn:true,ftGain:1.0,ftCoef:0.1,conserveMargin:0,slBase:35,posExtra:{逃げ:17,先行:17,差し:17,追込:17},mustPct:70,recPct:40,floor:.1,passSpdOnly:true,safe105:false,randAccelSafe:true,lotteryOut:true,posStyle:true,inhEvo:true,hintOwn:5,hintInh:5,hintGold:1,spCond:"通常",ver:6};
 const DEFAULT_STATE={field:{popularity:null,post:null,counts:null},ev:"チャンミ",courseId:"10606",scenario:null,ground:"良",weather:"晴",season:"春",charaId:null,style:"差し",apt:null,
   stats:{spd:1800,sta:1200,pow:1400,gut:1000,wit:1300},mood:"絶好調",spBudget:3000,deck:[null,null,null,null,null,null],inherit:[]};
 
@@ -439,6 +439,7 @@ if(S.randAccelSafe==null){S.randAccelSafe=true}
 if(S.lotteryOut==null){S.lotteryOut=true}
 if(S.posStyle==null){S.posStyle=true}
 if(S.inhEvo==null){S.inhEvo=true}
+if(S.mustPct==null){S.mustPct=70;S.recPct=40;S.floor=.1;LS.set("umaplan2.settings",S)}
 if(S.spCond==null){S.spCond=S.kiremono?"切れ者":"通常";delete S.kiremono;LS.set("umaplan2.settings",S)}
 if((S.ver||0)<6){S.hintOwn=5;S.hintInh=5;S.hintGold=1;S.ver=6;LS.set("umaplan2.settings",S)}
 if((S.ver||0)<5){S.slBase=DEFAULT_S.slBase;S.posExtra=Object.assign({},DEFAULT_S.posExtra);S.ver=5;LS.set("umaplan2.settings",S)}
@@ -608,7 +609,11 @@ function pickSupport(i){
 // 抽選で発動するスキル（「ごくまれに」など、抽選の確率が50%未満）
 const isLottery=s=>(s.ep||[]).some(q=>(q.conditions||[]).some(g=>["random_lot","random_lot_shared"].some(k=>(g[k]||[]).some(c=>Number(c.value)<50))));
 const mOf=(s,r)=>(S.randAccelSafe&&s.effect==="accel"&&r.random&&r.q25!=null)?r.q25:r.mean;
-const tierOf=v=>v>=S.must?"must":v>=S.rec?"rec":v>=S.opt?"opt":"none";
+// スキル判定の段階：プランごとに、入手できるスキルでいちばん伸びるもの（TH.best）を基準に、
+// 70%以上＝必須、40%以上＝推奨、それ未満で0.1バ身以上＝余裕があれば。基準の割合は設定で変えられる
+const TH={best:1,must:1,rec:.5,opt:.1};
+function setTH(best){TH.best=best;TH.must=Math.max(.1,best*(S.mustPct??70)/100);TH.rec=Math.max(.1,best*(S.recPct??40)/100);TH.opt=S.floor??.1}
+const tierOf=v=>v>=TH.must?"must":v>=TH.rec?"rec":v>=TH.opt?"opt":"none";
 const isInherited=id=>/^9\d{5}$/.test(id);
 // 枠番・人気・出走メンバーなど、レース当日まで分からない条件（期待値を半分にして表示）
 // 人気は未定のとき減点しない（想定人気を入れたときだけ判定）。その他の出走メンバー次第の条件は期待値を半分にする
@@ -760,7 +765,7 @@ function derive(p){
     const cur=UmaSim.run(p.ctxC,consPlans);
     if(cur.conserveAt==null)break;
     const pl=UmaSim.planSkill(ctx,x.s,.5);
-    if(UmaSim.run(p.ctxC,consPlans.concat(pl)).conserveShort<cur.conserveShort-1){consPlans=consPlans.concat(pl);x.conserveNeed=true;x.expAdj=Math.max(x.expAdj,S.must+0.01)}
+    if(UmaSim.run(p.ctxC,consPlans.concat(pl)).conserveShort<cur.conserveShort-1){consPlans=consPlans.concat(pl);x.conserveNeed=true}
   }
   // 系統ごとに、入手できる段階の中で期待バ身が最も高いものを代表にする（同点なら合計SPが安い方）
   const chainOf=s=>D.skills.filter(x=>x.groupId===s.groupId&&p.isBuyable(x)&&(x.groupRate??1)<=(s.groupRate??1)).sort((x,y)=>(x.groupRate??1)-(y.groupRate??1));
@@ -773,8 +778,11 @@ function derive(p){
     // デッキ・固有・初期/覚醒・イベントで取れる段階が1つでもあれば、その系統は手持ちの経路で取る（上の段階を白因子で狙う扱いにはしない）
     const own=list.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
     const ok=own.length?own:list.filter(x=>x.route&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
-    if(ok.length){const rep=ok[0];rep.tier=rep.tierBase=tierOf(rep.expAdj);reps.push(rep)}
+    if(ok.length)reps.push(ok[0]);
   }
+  // 仮の段階（手持ちの判定用）。最終的な段階は summarize で、手持ちと合わせたときの値で付け直す
+  setTH(Math.max(.1,...reps.filter(x=>!x.conserveNeed).map(x=>x.expAdj)));
+  for(const rep of reps)rep.tier=rep.tierBase=rep.conserveNeed?"must":tierOf(rep.expAdj);
   return{guide,reps};
 }
 
@@ -828,7 +836,7 @@ function summarize(p,d){
   // ランダム位置の加速は終盤に出る保証がないので、控えめ設定では「手持ちの加速」に数えない
   const ownAcc=S.randAccelSafe?ownAccAll.filter(x=>!x.r.random):ownAccAll;
   const ownAccRand=ownAccAll.length-ownAcc.length;
-  const selAcc=sel.filter(u=>lateAccel(u)&&u.exp>=S.opt);
+  const selAcc=sel.filter(u=>lateAccel(u)&&u.exp>=TH.opt);
   const accPlans=ownAcc.flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)).concat(selAcc.flatMap(u=>UmaSim.planSkill(ctx,u.s,.5)));
   const baseA=healPlans.concat(accPlans);
   const reach0=UmaSim.run(ctx,healPlans),reach1=UmaSim.run(ctx,baseA);
@@ -844,7 +852,7 @@ function summarize(p,d){
   }
   const accelOwn=ownAcc.length+selAcc.length;
   const accelInh=inhAcc.filter(x=>x.tier==="must"||x.tier==="rec").length;
-  const accel={rand:ownAccRand,own:accelOwn,inh:accelInh,bestNext,ok:bestNext<S.rec,reach0,reach1};
+  const accel={rand:ownAccRand,own:accelOwn,inh:accelInh,bestNext,ok:bestNext<TH.rec,reach0,reach1};
   // 因子化の候補：手持ち（デッキ・固有・初期/覚醒・シナリオ・イベント・進化で取る推奨以上のスキル）と選んだ継承固有を入れて走らせ、
   // そこに足したときに増える分で評価し直す（同じタイミングで効果が重なるスキルは低く出る）
   {
@@ -866,6 +874,12 @@ function summarize(p,d){
     accel.bestNext=accC.length?accC[0].marg:0;accel.bestAcc=accC[0]||null;
     accel.alt=othC.length?othC[0].marg:0;accel.altSkill=othC[0]||null;
     accel.ok=accel.bestNext<0.05||accel.bestNext<=accel.alt;
+  }
+  // スキル判定の段階を最終決定：表示する値（白因子は手持ちと合わせたときに増える分）のうちいちばん高いものを基準にする
+  {
+    const tv=x=>x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj;
+    setTH(Math.max(.1,...d.reps.filter(x=>!x.conserveNeed&&x.route&&x.r.ok).map(tv)));
+    for(const x of d.reps){x.tierV=tv(x);x.tier=x.conserveNeed?"must":tierOf(x.tierV)}
   }
   // 継承固有の候補：単独の評価で上位24件（同名は1件）を、手持ち（推奨以上のスキルと回復）と合わせて走らせたときに増える分で評価し直す。
   // おすすめ6件は、選んだものを順に積み上げながら1件ずつ選ぶ（加速どうしなど効果が重なるものは後回しになる）
@@ -1034,7 +1048,7 @@ function renderSheet(p){
   const rd=r=>r.reachPos!=null?`終盤に入ってから約${Math.round(r.reachPos-r.lateStart)}m（${r.reachT.toFixed(1)}秒）`:"終盤のうちに届かない";
   const compNote=[w.spotHp>0?`位置取り争いで約${Math.round(w.spotHp)}`:"",w.secureLeadHp>0?`リード確保（期待${w.secureLeadN.toFixed(1)}回）で約${Math.round(w.secureLeadHp)}`:""].filter(Boolean).join("、");
   const tiers=[["must","必須","var(--must)"],["rec","推奨","var(--rec)"],["opt","余裕があれば","var(--opt)"],["none","効果が小さい","var(--none)"]];
-  const groups=tiers.map(([t,l,col])=>{const rs=d.reps.filter(x=>x.tier===t).sort((a,b)=>b.expAdj-a.expAdj);if(!rs.length)return"";
+  const groups=tiers.map(([t,l,col])=>{const rs=d.reps.filter(x=>x.tier===t).sort((a,b)=>(b.conserveNeed-a.conserveNeed)||(b.tierV??b.expAdj)-(a.tierV??a.expAdj));if(!rs.length)return"";
     return `<details class="tier sub" data-sec="tier-${t}"${(SEC_OPEN["tier-"+t]??(t==="must"||t==="rec"))?" open":""}><summary class="tier-h"><span class="tg" style="background:${col}">${l}</span><span class="n">${rs.length}件</span><span class="chev" aria-hidden="true"></span></summary><div class="tier">${rs.map(skRow).join("")}</div></details>`}).join("");
   const facRow=(label,cls,list,cap)=>`<div class="facrow"><span class="ftier ${cls}">${label}<small>${list.length}/${cap}</small></span><div class="chips">${list.length?list.map(x=>`<span class="chip">${esc(x.s.name)} <b>${(x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj).toFixed(2)}</b></span>`).join(""):'<span class="hint">なし</span>'}</div></div>`;
   const farm=m.farm;
@@ -1093,7 +1107,7 @@ function renderSheet(p){
     </div>`)}
     ${d.guide.length?sec("guide","イベントの選び方（サポカ・シナリオ）",`<p class="hint">金スキルが取れるイベントだけを表示しています。選択肢をタップすると取得予定を変更できます。初期値はおすすめの選択肢で、ここに出ていないイベントもおすすめの選択肢を取る前提で判定しています。</p><div class="guide">${guideHtml}</div>`):""}
     ${sec("skills","スキル判定",`<div style="display:grid;gap:12px">${groups}
-      <p class="hint">同じ系統（○→◎→金）は、入手できる段階のうち期待バ身が最も高いものを1行で表示しています。上の段階を取るには下の段階も必要なため、SPは下位込みの合計です。持久力温存の回避に必要な回復は必須に入れています。このレースで発動しないスキル：${p.dead.length}件（表示を省略）</p>
+      <p class="hint">段階は、入手できるスキルで期待バ身がいちばん高いもの（${TH.best.toFixed(2)}バ身）を基準に、${S.mustPct??70}%以上（${TH.must.toFixed(2)}バ身〜）を必須、${S.recPct??40}%以上（${TH.rec.toFixed(2)}バ身〜）を推奨、${TH.opt}バ身以上を余裕があれば、としています。同じ系統（○→◎→金）は、入手できる段階のうち期待バ身が最も高いものを1行で表示しています。上の段階を取るには下の段階も必要なため、SPは下位込みの合計です。持久力温存の回避に必要な回復は必須に入れています。このレースで発動しないスキル：${p.dead.length}件（表示を省略）</p>
     </div>`)}
     <p class="foot">期待バ身＝獲得バ身×発動率（賢さ${st.stats.wit}で約${Math.round(p.rate*100)}%）。1人走行の近似計算です。コース補正ステータス（スピード×${p.courseMod.toFixed(2)}）・掛かり・下り坂加速・賢さの揺らぎは期待値で反映し、位置取り争い・リード確保の体力消費は設定の値で反映しています（ブロックは含みません）。全開スパートは${p.ctx.ft.on?"仮モデルで反映しています":"含みません"}。データ出典：${esc(D.meta.source)}（${esc((D.meta.fetchedAt||"").slice(0,10))}取得）、サポカのイベントの照合にGameTora、開催イベントの条件にgamebiz（Cygames発表の転載）とU-tools、シナリオの上限ステータスに神ゲー攻略。</p>
   </div>`;
@@ -1220,7 +1234,7 @@ $("#btnSavePlan").addEventListener("click",()=>{const c=course();const n=$("#pla
 
 /* ---------- 設定 ---------- */
 function renderSettings(){
-  const items=[["持久力温存の判定に足す予備（最大体力の%）","conserveMargin"],["必須の下限（バ身）","must"],["推奨の下限（バ身）","rec"],["余裕ありの下限（バ身）","opt"],["ランダム位置の試行回数","samples"]];
+  const items=[["持久力温存の判定に足す予備（最大体力の%）","conserveMargin"],["必須：いちばん伸びるスキルの何%以上か","mustPct"],["推奨：いちばん伸びるスキルの何%以上か","recPct"],["余裕あり・評価の下限（バ身）","floor"],["ランダム位置の試行回数","samples"]];
   $("#coefInputs").innerHTML=items.map(([l,k])=>`<label class="f">${l}<input type="number" step="any" id="cf-${k}" value="${S[k]}"></label>`).join("");
   $("#coefInputs").querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{const k=inp.id.slice(3),v=parseFloat(inp.value);if(isNaN(v))return;S[k]=k==="samples"?Math.max(1,Math.min(32,Math.round(v))):v;LS.set("umaplan2.settings",S);planDirty=true}));
   renderFt();
