@@ -36,6 +36,13 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 h1{font-weight:800;font-size:21px;line-height:1.2;margin:0;text-shadow:0 2px 0 var(--green-d);text-wrap:balance}
 .appbar p{margin:0;font-size:12px;opacity:.95}
 .banner{margin:12px 0 0;padding:8px 12px;border-radius:12px;background:#fff;border:2px dashed var(--line);font-size:12px;color:var(--muted)}
+.linkbtn{font:inherit;font-size:12px;font-weight:800;color:var(--green-d);background:none;border:0;padding:4px 0 0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.cllist{overflow-y:auto;display:grid;gap:8px;min-height:0}
+.cllist summary{font-weight:800;cursor:pointer;padding:6px 0}
+.cllist summary small{margin-left:8px;color:var(--muted);font-weight:700;font-size:11.5px}
+.cllist ul{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:13px;line-height:1.55}
+.cllist li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px}
+.cllist .tm{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px;padding-top:1px}
 .banner.err{background:#fff0ee;border-color:var(--must);color:var(--must)}
 nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;padding-block:10px;background:linear-gradient(var(--bg) 70%,transparent)}
 .tabtrack{display:flex;gap:4px;background:#fff;border-radius:999px;padding:4px;box-shadow:0 2px 0 var(--line);overflow-x:auto;scrollbar-width:none}
@@ -512,6 +519,17 @@ const dirty=()=>{planDirty=true;persist();if(D)renderPresets()};
 function seg(el,opts,cur,on){el.innerHTML="";opts.forEach(o=>{const b=document.createElement("button");b.type="button";b.textContent=o;
   b.setAttribute("aria-pressed",o===cur?"true":"false");b.addEventListener("click",()=>{on(o);seg(el,opts,o,on)});el.appendChild(b)})}
 function fillSelect(sel,items,cur){sel.innerHTML=items.map(([v,l])=>`<option value="${esc(v)}"${String(v)===String(cur)?" selected":""}>${esc(l)}</option>`).join("")}
+
+/* ---------- 更新履歴 ---------- */
+function openChangelog(){
+  const cl=D.changelog||[];
+  const bg=document.createElement("div");bg.className="sheet-bg";
+  bg.innerHTML=`<div class="sheet" role="dialog" aria-label="更新履歴"><div style="display:flex;align-items:center;gap:8px"><h3>更新履歴</h3><button class="btn sm" style="margin-left:auto" data-close>閉じる</button></div>
+    <div class="cllist">${cl.map((e,i)=>`<details${i===0?" open":""}><summary>${esc(e.date.replace(/-/g,"/"))}<small>${e.items.length}件</small></summary><ul>${e.items.map(([t,x])=>`<li><span class="tm">${esc(t)}</span><span>${esc(x)}</span></li>`).join("")}</ul></details>`).join("")}</div></div>`;
+  document.body.appendChild(bg);
+  const close=()=>bg.remove();
+  bg.addEventListener("click",e=>{if(e.target===bg||e.target.hasAttribute("data-close"))close()});
+}
 
 /* ---------- 選択シート（検索付き） ---------- */
 function openPicker({title,items,filters,render,onPick}){
@@ -1477,7 +1495,9 @@ function renderAll(){renderRace();renderUma();renderDeck();renderSaved()}
     }
     st.deck=st.deck.map(id=>SP[id]?id:null);
     persist();
-    $("#dataBanner").textContent=`データ：${D.meta.source}（${(D.meta.fetchedAt||"").slice(0,10)}取得）。獲得バ身は1人走行の近似計算です。`;
+    const cl=D.changelog||[];
+    $("#dataBanner").innerHTML=`データ：${esc(D.meta.source)}（${esc((D.meta.fetchedAt||"").slice(0,10))}取得）。獲得バ身は1人走行の近似計算です。${cl.length?`<br><button type="button" class="linkbtn" id="clOpen">更新履歴（最終更新 ${esc(cl[0].date.slice(5).replace("-","/"))}）›</button>`:""}`;
+    if(cl.length)$("#clOpen").addEventListener("click",openChangelog);
     renderAll();
   }catch(e){
     console.error(e);
