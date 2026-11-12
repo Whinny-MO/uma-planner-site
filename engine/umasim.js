@@ -17,6 +17,8 @@
   const STYLE_IDX = { 逃げ: 0, 先行: 1, 差し: 2, 追込: 3 };
   const STRAT_SPEED = [[1.0, 0.98, 0.962], [0.978, 0.991, 0.975], [0.938, 0.998, 0.994], [0.931, 1.0, 1.0]];
   const STRAT_ACCEL = [[1.0, 1.0, 0.996], [0.985, 1.0, 0.996], [0.975, 1.0, 1.0], [0.945, 1.0, 0.997]];
+  // 効果の対象：rangeType 1 が自分。それ以外は他のウマ娘（デバフ）や特定の相手にかかる
+  const selfEff = (e) => e.rangeType == null || e.rangeType === 1;
   const STRAT_HP = [0.95, 0.89, 1.0, 0.995];
   const DIST_SPEED = { S: 1.05, A: 1.0, B: 0.9, C: 0.8, D: 0.6, E: 0.4, F: 0.2, G: 0.1 };
   const DIST_ACCEL = { S: 1.0, A: 1.0, B: 1.0, C: 1.0, D: 1.0, E: 0.6, F: 0.5, G: 0.4 };
@@ -373,12 +375,14 @@
       if (regs[0].dep && !mains.length) continue;
       // 効果の種類が同じパターンは「条件で強さが変わる」分岐なので、最初に発動できる1つだけ採用する
       const sig = (p.effects || []).map((e) => e.target).join(",");
+      // 他のウマ娘にかかる効果（デバフ・味方向けなど。rangeType が 1 以外）は自分の走りに入れない
+      if (!(p.effects || []).some(selfEff)) continue;
       const r = regs[0];
       let pos = r.random ? pointAt(r.region, frac) : r.region[0][0];
       if (r.dep) { const first = out.find((x) => !x.dep); if (!first) continue; if (first.pos > pos) pos = first.pos; }
       const dur = p.baseTime > 0 ? (p.baseTime / 10000) * (ctx.D / 1000) : 0;
       // 全開スパート中が条件のものは、全開スパート開始位置〜ゴールの中の割合で発動位置を決める（走行中に確定）
-      const plan = { pos: r.ft ? Infinity : pos, ftFrac: r.ft ? (r.random ? frac : 0) : null, dur, passive: p.baseTime < 0, effects: p.effects || [], random: r.random, unknown: r.unknown, prob: r.prob, posKeys: r.posKeys, alts: [], dep: !!r.dep };
+      const plan = { pos: r.ft ? Infinity : pos, ftFrac: r.ft ? (r.random ? frac : 0) : null, dur, passive: p.baseTime < 0, effects: (p.effects || []).filter(selfEff), random: r.random, unknown: r.unknown, prob: r.prob, posKeys: r.posKeys, alts: [], dep: !!r.dep };
       if (seen.has(sig)) { const main = out.find((x) => x.sig === sig); if (main) main.alts.push(plan); continue; }
       seen.add(sig);
       plan.sig = sig;

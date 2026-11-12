@@ -954,6 +954,35 @@ function skillCost(x){
   const lvOf=k=>k.id===x.s.id&&x.route.evLv!=null?x.route.evLv:k.rarity==="gold"?Math.min(lvBase,S.hintGold??1):lvBase;
   return (x.chain||[x.s]).reduce((t,k)=>t+Math.round((k.sp||0)*(1-d(lvOf(k)))),0);
 }
+// 自分の体力を使う効果（アグレッシブの−2%など）を持つか。他のウマ娘にかかるデバフと、「すごく使ってしまうことがある」型の大きな消費は除く
+const selfHpCost=s=>(s.ep||[]).some(q=>(q.effects||[]).some(e=>e.target===9&&e.value<0&&e.value>-5000&&(e.rangeType==null||e.rangeType===1)));
+function staRecheck(p,d,m,L,noAdd){
+  const ctx=p.ctx;
+  const cs=[...new Map([...L.picked.filter(k=>!k.forced).map(k=>k.x.s),...m.sel.map(u=>u.s)].filter(selfHpCost).map(s=>[s.id,s])).values()];
+  m.costNames=cs.map(s=>s.name);m.costHp=0;
+  if(!cs.length)return false;
+  const costPlans=cs.flatMap(s=>UmaSim.planSkill(ctx,s,.5)).filter(pl=>!pl.passive).map(pl=>({...pl,effects:pl.effects.filter(e=>e.target===9&&e.value<0)})).filter(pl=>pl.effects.length);
+  m.costHp=-costPlans.reduce((t,pl)=>t+pl.effects.reduce((a,e)=>a+e.value/10000,0),0);
+  const dbf=dbOf(ctx);
+  const firstPos=x=>{const pl=UmaSim.planSkill(ctx,x.s,.5);return pl.length?pl[0].pos:1e9};
+  let added=false;
+  if(!noAdd){
+    let base=m.healPlans.concat(d.reps.filter(x=>x.conserveNeed&&x.route&&x.route.kind!=="own").flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)),dbf,costPlans);
+    const cands=d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.r.ok&&x.route.kind!=="own"&&!x.conserveNeed).sort((a,b)=>firstPos(a)-firstPos(b)||(b.s.value||0)-(a.s.value||0));
+    for(const x of cands){
+      const cur=UmaSim.run(p.ctxC,base);if(cur.conserveAt==null)break;
+      const pl=UmaSim.planSkill(ctx,x.s,.5);if(!pl.length)continue;
+      if(UmaSim.run(p.ctxC,base.concat(pl)).conserveShort<cur.conserveShort-1){base=base.concat(pl);x.conserveNeed=true;x.costNeed=true;x.tier=x.tierBase="must";added=true}
+    }
+  }
+  const withC=m.healPlans.concat(dbf,costPlans);
+  const short=r=>r.conserveAt==null?0:r.conserveShort;
+  m.noHeal=UmaSim.run(p.ctxC,dbf.concat(costPlans));m.withOwn=UmaSim.run(p.ctxC,withC);
+  m.deficit=short(m.withOwn);m.deficitNoHeal=short(m.noHeal);m.deficitRush=short(UmaSim.run(p.ctxRush,withC));m.rushChance=m.withOwn.rushedChance;
+  m.dbTol=-1;
+  if(m.withOwn.conserveAt==null){m.dbTol=0;for(let k=1;k<=12;k++){if(UmaSim.run(p.ctxC,withC.concat(debuffPlans(ctx,k,0))).conserveAt!=null)break;m.dbTol=k}}
+  return added;
+}
 function buildLoadout(p,d,m){
   const ctx=p.ctx,budget=st.spBudget??3000;
   const isPassive=s=>(s.ep||[]).length>0&&s.ep.every(q=>q.baseTime<0);
@@ -1006,7 +1035,7 @@ function skRow(x){
   meta.push(x.r.random?"ランダム位置":"確定位置");
   if(x.r.random&&x.r.ok)meta.push(`${x.r.min.toFixed(2)}〜${x.r.max.toFixed(2)}バ身`);
   const sp=spText(x);if(sp)meta.push(sp);
-  if(x.conserveNeed)meta.push("持久力温存の回避に必要");
+  if(x.conserveNeed)meta.push(x.costNeed?"持久力温存の回避に必要（体力を使うスキルの分）":"持久力温存の回避に必要");
   if(x.inLoadout)meta.push("おすすめ構成に入る");
   if(x.conn)meta.push((x.conn.rate>=0.99?"終盤接続":`終盤接続（約${Math.round(x.conn.rate*100)}%）`)+`・終盤に入るとき効果が残り約${x.conn.rem.toFixed(1)}秒`);
   if(isLottery(x.s))meta.push(S.lotteryOut?"抽選で発動するため、おすすめ構成・因子化の候補から除外":"抽選で発動（期待値で評価）");
@@ -1045,14 +1074,16 @@ const SEC_OPEN=LS.get("umaplan2.sec",{});
 const sec=(id,title,body,def=true)=>`<details class="sec" data-sec="${id}"${(SEC_OPEN[id]??def)?" open":""}><summary><span class="ribbon">${title}</span><span class="chev" aria-hidden="true"></span></summary><div class="sec-b">${body}</div></details>`;
 function renderSheet(p){
   const d=derive(p);
-  const m=summarize(p,d);persist();
+  let m=summarize(p,d);persist();
   for(const x of d.reps)x.conn=x.r.ok?connectInfo(p.ctx,x.s):null;
   const connList=d.reps.filter(x=>x.conn&&x.route).sort((a,b)=>(b.conn.rate>=0.99)-(a.conn.rate>=0.99)||(a.route.kind==="own"?0:1)-(b.route.kind==="own"?0:1)||b.conn.rate-a.conn.rate||b.expAdj-a.expAdj);
   const connInh=m.cands.map(u=>({u,c:u.r.ok?connectInfo(p.ctx,u.s):null})).filter(o=>o.c);
   const connHtml=`<p class="hint">中盤に発動した速度スキルの効果が残ったまま、終盤（${Math.round(p.ctx.phaseIv[2][0])}m地点）に入れるスキルです。速度が上がった状態からラストスパートの加速が始まるため、最高速度に早く届きます（期待バ身にはこの効果も入っています）。ランダム位置のものは、発動位置しだいでつながる割合を出しています。</p>
     ${connList.length?`<ul class="ulist clist">${connList.filter(x=>x.conn.rate>=0.99).concat(connList.filter(x=>x.conn.rate<0.99).slice(0,10)).map(x=>`<li><span><b>${esc(x.s.name)}</b><small style="display:block;color:var(--muted)">${esc(x.route.label)}</small></span><span>${x.conn.rate>=0.99?'<span class="cbadge sure">確定</span>':'<span class="cbadge maybe">約'+Math.round(x.conn.rate*100)+'%</span>'}残り${x.conn.rem.toFixed(1)}秒・${(x.expAdj??x.exp).toFixed(2)}バ身</span></li>`).join("")}</ul>`:'<p class="hint">該当するスキルはありません。</p>'}
     ${connInh.length?`<p class="lbl" style="margin-top:8px">継承固有の候補</p><ul class="ulist">${connInh.map(o=>`<li><span><b>${esc(o.u.s.name)}</b><small style="display:block;color:var(--muted)">${esc(o.u.x.name)}</small></span><span>${o.c.rate>=0.99?'<span class="cbadge sure">確定</span>':'<span class="cbadge maybe">約'+Math.round(o.c.rate*100)+'%</span>'}残り${o.c.rem.toFixed(1)}秒・${o.u.exp.toFixed(2)}バ身</span></li>`).join("")}</ul>`:""}`;
-  const L=buildLoadout(p,d,m);
+  let L=buildLoadout(p,d,m);
+  // 構成に入った「体力を使うスキル」の消費を足してスタミナを判定し直す。回復が足りなくなったら回復を足して、構成を組み直す
+  if(staRecheck(p,d,m,L)){m=summarize(p,d);L=buildLoadout(p,d,m);staRecheck(p,d,m,L,true)}
   for(const x of d.reps)x.inLoadout=false;
   L.picked.forEach(k=>k.x.inLoadout=true);
   const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
@@ -1108,7 +1139,7 @@ function renderSheet(p){
     </div>
     ${sec("summary","判定サマリー",`<div class="kpis">
       <div class="kpi"><span class="k">スタミナ（持久力温存）</span><span class="v">${ok?"起きない":"−"+Math.round(m.deficit)}</span>
-        <span class="d">${stState} ${conserveNote}。掛かり率${(m.rushChance*100).toFixed(1)}%を期待値で反映。${m.dbSet.gold||m.dbSet.white?`スタミナデバフ（−3%級${m.dbSet.gold}本・−1%級${m.dbSet.white}本）を受ける前提。`:""}<br>${m.dbTol<0?"スタミナデバフに耐える余裕はない":m.dbTol>=12?"スタミナデバフ（−3%級）を12本以上受けても起きない":m.dbTol===0?`スタミナデバフ（−3%級）を${m.dbSet.gold||m.dbSet.white?"これ以上":""}1本受けると起きる`:`スタミナデバフ（−3%級）を${m.dbSet.gold||m.dbSet.white?"さらに":""}${m.dbTol}本まで受けても起きない（${m.dbTol+1}本目で起きる）`}。${compNote?`位置取りの消費：${compNote}。`:""}${m.deficitRush>0?`<br>掛かりが最大12秒続くと約${Math.round(m.deficitRush)}不足（金回復 約${(m.deficitRush/m.unit).toFixed(1)}個分）`:"<br>掛かりが最大12秒続いても起きない"}</span></div>
+        <span class="d">${stState} ${conserveNote}。掛かり率${(m.rushChance*100).toFixed(1)}%を期待値で反映。${m.costHp>0?`取る予定のスキルの体力消費（${esc(m.costNames.join("・"))}：計 最大体力の${(m.costHp*100).toFixed(1)}%）を含む。`:""}${m.dbSet.gold||m.dbSet.white?`スタミナデバフ（−3%級${m.dbSet.gold}本・−1%級${m.dbSet.white}本）を受ける前提。`:""}<br>${m.dbTol<0?"スタミナデバフに耐える余裕はない":m.dbTol>=12?"スタミナデバフ（−3%級）を12本以上受けても起きない":m.dbTol===0?`スタミナデバフ（−3%級）を${m.dbSet.gold||m.dbSet.white?"これ以上":""}1本受けると起きる`:`スタミナデバフ（−3%級）を${m.dbSet.gold||m.dbSet.white?"さらに":""}${m.dbTol}本まで受けても起きない（${m.dbTol+1}本目で起きる）`}。${compNote?`位置取りの消費：${compNote}。`:""}${m.deficitRush>0?`<br>掛かりが最大12秒続くと約${Math.round(m.deficitRush)}不足（金回復 約${(m.deficitRush/m.unit).toFixed(1)}個分）`:"<br>掛かりが最大12秒続いても起きない"}</span></div>
       <div class="kpi"><span class="k">終盤の加速</span><span class="v">${A.reach1.reachPos!=null?Math.round(A.reach1.reachPos-A.reach1.lateStart)+"<small>mで最高速度</small>":"届かない"}</span>
         <span class="d">${accOk?'<span class="state st-ok">足りる</span>':'<span class="state st-ng">足りない</span>'} 加速スキルなしだと${rd(A.reach0)}で最高速度に届く。手持ちの加速${m.accelOwn}個で${rd(A.reach1)}に短縮${A.rand?`（ランダム位置の加速${A.rand}個は数えていない）`:""}。白因子の加速をもう1個足すと最大${A.bestNext.toFixed(2)}バ身${A.bestAcc?`（${esc(A.bestAcc.s.name)}）`:""}、加速以外で因子化できるいちばん良いスキルは${A.alt.toFixed(2)}バ身${A.altSkill?`（${esc(A.altSkill.s.name)}）`:""}。${accOk?"加速以外に因子の枠を使ったほうが得なので、加速は足りています":"加速を足したほうが得なので、加速の因子を優先しましょう"}</span></div>
       <div class="kpi"><span class="k">白因子で拾うスキル</span><span class="v">${m.fac.top.length}<small> 超優先</small> ${m.fac.high.length}<small> 優先</small></span><span class="d">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントで取れない白スキルのうち、効果の大きいもの</span></div>
