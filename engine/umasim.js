@@ -64,8 +64,15 @@
   // 順位や前後の状況が条件のものの成立確率（目安）。分からないものは null
   const OVERTAKE_P = [0.2, 0.5, 0.8, 0.8], DOWN_P = [0.5, 0.4, 0.2, 0.1];
   const GAP_TOP = [[0, 3], [3, 10], [8, 20], [15, 30]];
-  function positionProb(ctx, key, sign, v) {
+  // 前方脚質（逃げ・先行）は、脚質どおりに走ったときの順位の範囲の先頭（前目につけたとき）で満たせる条件だけ成立扱いにする（options.frontStrict）。
+  // 前目につけると満たせない「中団・後方にいるとき」系の条件を、狙って満たせる扱いにしないため
+  function posRange(ctx) {
     const { N, lo, hi } = ctx.pos;
+    if (ctx.opts.posMode === "style" && ctx.opts.frontStrict && ctx.style <= 1) return { N, lo, hi: lo };
+    return { N, lo, hi };
+  }
+  function positionProb(ctx, key, sign, v) {
+    const { N, lo, hi } = posRange(ctx);
     const share = (test) => { let n = 0; for (let o = lo; o <= hi; o++) if (test(o)) n++; return n / (hi - lo + 1); };
     const st = ctx.style;
     switch (key) {
@@ -77,7 +84,7 @@
       case "order_rate_in80_continue": return share((o) => (o / N) * 100 <= 80);
       case "order_rate_out40_continue": return share((o) => (o / N) * 100 > 40);
       case "distance_diff_top": case "distance_diff_top_float": {
-        const [a, b] = GAP_TOP[st]; let n = 0; for (let g = a; g <= b; g++) if (cmp(g, sign, v)) n++; return n / (b - a + 1);
+        const [a, b0] = GAP_TOP[st]; const b = ctx.opts.posMode === "style" && ctx.opts.frontStrict && st <= 1 ? a : b0; let n = 0; for (let g = a; g <= b; g++) if (cmp(g, sign, v)) n++; return n / (b - a + 1);
       }
       case "is_overtake": case "overtake_target_time": case "changeOrderUp":
       case "change_order_up_end_after": case "change_order_up_middle": case "change_order_up_finalcorner_after":
@@ -223,7 +230,7 @@
       }
       // 順位の条件が上限・下限の2つで書かれている場合は、両方を同時に満たす割合で見る（別々に掛けると低く出る）
       if ((key === "order" || key === "order_rate") && list.length > 1) {
-        const { N, lo, hi } = ctx.pos;
+        const { N, lo, hi } = posRange(ctx);
         let n = 0;
         for (let o = lo; o <= hi; o++) if (list.every(({ sign, value }) => cmp(key === "order" ? o : (o / N) * 100, sign, Number(value)))) n++;
         const pp = styleFit(ctx, key, n / (hi - lo + 1));
