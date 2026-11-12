@@ -125,6 +125,18 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .sk.conn-sure .nm::after{color:#fff;background:#ff8a1c}
 .sk.conn-maybe .nm::after{color:#c25e00;background:#fff;border:1.5px solid #ffb26b}
 .clist li{align-items:center}.clist li>span:last-child{flex:0 0 auto;text-align:right;white-space:nowrap;font-size:12.5px}
+.xsheet{position:fixed;left:-10000px;top:0;width:720px;background:#fff;color:#1d2a24;padding:18px 20px;font-family:"M PLUS Rounded 1c",system-ui,sans-serif;font-size:12.5px;line-height:1.45;display:grid;gap:6px}
+.xsheet .xh{border-bottom:3px solid #3fb950;padding-bottom:6px;margin-bottom:2px}
+.xsheet .xt{font-size:17px;font-weight:800}
+.xsheet .xs{font-size:12px;color:#55665c}
+.xsheet .xr{display:grid;grid-template-columns:108px 1fr;gap:8px;align-items:start;border-bottom:1px dashed #d6e2da;padding:3px 0}
+.xsheet .xk{font-weight:800;color:#2a7d43;font-size:12px}
+.xsheet .xk small{display:block;font-weight:600;color:#55665c;font-size:10.5px}
+.xsheet .xcs{display:flex;flex-wrap:wrap;gap:3px}
+.xsheet .xc{border:1.5px solid #cfdcd3;border-radius:999px;padding:0 7px;font-size:11.5px;background:#fff}
+.xsheet .xc.xg{border-color:#e0b93b;background:#fff6d8}
+.xsheet .xe{font-size:11.5px}
+.xsheet .xf{font-size:10px;color:#8a978f;text-align:right;margin-top:4px}
 .cbadge{display:inline-block;font-size:11px;font-weight:800;border-radius:999px;padding:0 7px;margin-right:4px;white-space:nowrap}
 .cbadge.sure{color:#fff;background:#ff8a1c}.cbadge.maybe{color:#c25e00;border:1.5px solid #ffb26b}
 .chip.gold{background:linear-gradient(180deg,var(--gold1),var(--gold2));color:var(--gold-ink)}
@@ -1002,6 +1014,7 @@ function renderSheet(p){
     <div class="kpis"><div class="kpi"><span class="k">使うSP</span><span class="v">${L.used}<small> / ${L.budget}pt</small></span><span class="d">${L.inhN?`継承固有${L.inhN}個（1個${L.inhCost}pt）を含む。`:""}残り${Math.max(0,L.budget-L.used)}pt</span></div>
     <div class="kpi"><span class="k">構成全体の期待バ身</span><span class="v">${L.total.toFixed(2)}<small>バ身</small></span><span class="d">選んだ継承固有・温存回避の回復の分は含まない</span></div></div>
     <ol class="ulist lout">${L.picked.map(k=>`<li><span><b>${esc(k.x.s.name)}</b><small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
+  lastExport={p,d,m,L,connList};
   const w=m.withOwn,ok=m.deficit<=0,okNo=m.deficitNoHeal<=0;
   const stState=okNo?'<span class="state st-ok">回復なしで起きない</span>':ok?'<span class="state st-warn">回復スキルで回避できる</span>':'<span class="state st-ng">起きる</span>';
   const conserveNote=w.conserveAt!=null?`中盤の約${Math.round(w.conserveAt)}m地点で体力が約${Math.round(m.deficit)}不足（金回復 約${(m.deficit/m.unit).toFixed(1)}個分、白回復なら約${(m.deficit/m.unit*5.5/1.5).toFixed(1)}個分）。この地点より前に発動する回復が必要`:(m.deficitNoHeal>0?`回復なしだと約${Math.round(m.deficitNoHeal)}不足（金回復 約${(m.deficitNoHeal/m.unit).toFixed(1)}個分）するが、入手できる回復で補える`:"中盤を通して、残りを全力で走り切る体力が残る");
@@ -1088,6 +1101,37 @@ function renderSheet(p){
   });
 }
 
+/* ---------- 保存用のコンパクトなシート ---------- */
+let lastExport=null;
+function buildExportHtml(){
+  const {p,d,m,L,connList}=lastExport;const c=p.c,ch=p.ch,w=m.withOwn,A=m.accel;
+  const ev=(D.events||[]).find(e=>e.courseId===c.id&&e.kind===st.ev&&(!e.season||e.season===st.season));
+  const chip=(t,g)=>`<span class="xc${g?" xg":""}">${esc(t)}</span>`;
+  const row=(k,v)=>`<div class="xr"><div class="xk">${k}</div><div class="xv">${v}</div></div>`;
+  const stam=m.deficitNoHeal<=0?"回復なしで持久力温存は起きない":m.deficit<=0?`回復スキルで回避できる（回復なしだと金回復 約${(m.deficitNoHeal/m.unit).toFixed(1)}個分不足）`:`手持ちの回復でも約${Math.round(m.deficit)}不足（金回復 約${(m.deficit/m.unit).toFixed(1)}個分）`;
+  const acc=`${A.ok?"足りる":"足りない"}・終盤に入ってから約${A.reach1.reachPos!=null?Math.round(A.reach1.reachPos-A.reach1.lateStart):"—"}mで最高速度`;
+  const inh=(m.sel.length?m.sel:[]).map(u=>chip(u.s.name+"（"+u.x.name+"）"+(u.evo?"・継承進化":""))).join("")||"未選択";
+  const lo=L.picked.map(k=>chip(k.x.s.name,k.x.s.rarity==="gold"||k.x.s.rarity==="unique")).join("");
+  const fac=(list)=>list.length?list.map(x=>chip(x.s.name)).join(""):"—";
+  const evs=d.guide.filter(g=>g.sel&&g.sel.res.some(r=>r.skills.some(k=>k.s.rarity==="gold"))).map(g=>`<div class="xe"><b>${esc(g.card.name)}</b>「${esc(g.ev.title)}」${g.sel.text?"→ "+esc(g.sel.text.replace(/（リンク対象[^）]*）/,"")):""}：${[...new Set(g.sel.res.flatMap(r=>r.skills.filter(k=>k.s.rarity==="gold").map(k=>k.s.name)))].map(esc).join("・")}</div>`).join("")||"—";
+  const conn=connList.filter(x=>x.conn.rate>=0.99).map(x=>chip(x.s.name)).join("")||"—";
+  const deck=p.deckCards.map(cd=>esc(cd.name)).join("・")||"—";
+  return `<div class="xh"><div class="xt">${ev?esc(ev.label)+"　":""}${esc(c.track)} ${esc(c.surface)}${c.dist}m・${esc(st.season)}・${esc(st.weather)}・${esc(st.ground)}</div>
+    <div class="xs">${esc(ch.title)}${esc(ch.name)}・${esc(st.style)}・${esc(p.scName)}　スピード${st.stats.spd}／スタミナ${st.stats.sta}／パワー${st.stats.pow}／根性${st.stats.gut}／賢さ${st.stats.wit}</div></div>
+    ${row("デッキ",deck)}
+    ${row("スタミナ",esc(stam))}
+    ${row("終盤の加速",esc(acc))}
+    ${row("継承固有",`<div class="xcs">${inh}</div>`)}
+    ${row(`取るスキル<small>${L.used}/${L.budget}pt・${L.total.toFixed(1)}バ身</small>`,`<div class="xcs">${lo||"—"}</div>`)}
+    ${row("イベントの選択",evs)}
+    ${row("終盤接続（確定）",`<div class="xcs">${conn}</div>`)}
+    ${row("因子化：超優先",`<div class="xcs">${fac(m.fac.top)}</div>`)}
+    ${row("因子化：優先",`<div class="xcs">${fac(m.fac.high)}</div>`)}
+    ${row("因子化：通常",`<div class="xcs">${fac(m.fac.norm)}</div>`)}
+    <div class="xf">ウマ娘 育成プランナー（非公式）・${new Date().toLocaleDateString("ja-JP")}作成・獲得バ身とスタミナは近似計算</div>`;
+}
+
+window.__buildExport=()=>lastExport?buildExportHtml():""; // 確認用
 /* ---------- 保存 ---------- */
 let dl=null;(async()=>{try{dl=window.claude&&window.claude.use?await window.claude.use("downloads"):null}catch(e){dl=null}})();
 function fname(ext){const c=course();return `育成プラン_${c.track}${c.surface}${c.dist}_${st.style}.${ext}`}
@@ -1096,8 +1140,9 @@ async function doSave(kind){
   if(!lastPlan){toast("先にプランを作成してください");return}
   const btns=[$("#btnPng"),$("#btnPdf")];btns.forEach(b=>b.disabled=true);
   try{
-    const closed=[...$("#sheet").querySelectorAll("details:not([open])")];closed.forEach(d=>d.open=true);
-    let canvas;try{canvas=await html2canvas($("#sheet"),{scale:2,backgroundColor:"#ffffff",useCORS:true})}finally{closed.forEach(d=>d.open=false)}
+    // 保存は、要点だけをまとめた専用のシートを画面外に作って画像にする
+    const box=document.createElement("div");box.className="xsheet";box.innerHTML=buildExportHtml();document.body.appendChild(box);
+    let canvas;try{canvas=await html2canvas(box,{scale:2,backgroundColor:"#ffffff",useCORS:true})}finally{box.remove()}
     let blob;
     if(kind==="png"){blob=await new Promise(r=>canvas.toBlob(r,"image/png"))}
     else{const {jsPDF}=window.jspdf;const pdf=new jsPDF({unit:"mm",format:"a4"});
