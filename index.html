@@ -278,6 +278,13 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
         <label class="f">差し<input type="number" id="fc-差し" min="0" max="17" inputmode="numeric"></label>
         <label class="f">追込<input type="number" id="fc-追込" min="0" max="17" inputmode="numeric"></label>
       </div>
+      <div><p class="lbl">受けるスタミナデバフの想定</p>
+        <div class="grid2">
+          <label class="f">−3%級（金）<input type="number" id="dbG" min="0" max="12" inputmode="numeric"></label>
+          <label class="f">−1%級（白）<input type="number" id="dbW" min="0" max="12" inputmode="numeric"></label>
+        </div>
+        <p class="hint">自分が受ける本数です。−3%級は八方にらみ・魅惑のささやき・逃亡禁止令・見惚れるトリックなど、−1%級は鋭い眼光・ささやき・トリック・抜け駆け禁止・スタミナグリード、脚質を狙う○○けん制・○○焦りなどです（けん制・焦りは自分の脚質が対象のものだけ数えます。スタミナイーターは−0.5%なので2本で1本分）。中盤の前半にまとめて受ける前提で、持久力温存とスパートの判定に反映し、あと何本まで耐えられるかを判定サマリーに出します。</p>
+      </div>
     </div></div>
     <div class="btnrow"><button class="btn primary grow" data-go="uma">次へ</button></div>
   </section>
@@ -531,8 +538,11 @@ function renderField(){
     st.field.counts=v==="指定する"?(st.field.counts||(st.ev==="LoH"?{逃げ:2,先行:4,差し:4,追込:1}:{逃げ:2,先行:3,差し:2,追込:1})):null;dirty();renderField()});
   $("#fCounts").hidden=!st.field.counts;
   if(st.field.counts)STYLES.forEach(k=>$("#fc-"+k).value=st.field.counts[k]??0);
+  st.debuff=st.debuff||{gold:0,white:0};
+  $("#dbG").value=st.debuff.gold||0;$("#dbW").value=st.debuff.white||0;
 }
 $("#fPop").addEventListener("change",e=>{st.field.popularity=e.target.value?+e.target.value:null;dirty()});
+[["#dbG","gold"],["#dbW","white"]].forEach(([sel,k])=>$(sel).addEventListener("input",e=>{const v=parseInt(e.target.value,10);st.debuff=st.debuff||{gold:0,white:0};st.debuff[k]=v>=0?Math.min(12,v):0;dirty()}));
 $("#fPost").addEventListener("change",e=>{st.field.post=e.target.value?+e.target.value:null;dirty()});
 STYLES.forEach(k=>$("#fc-"+k).addEventListener("input",e=>{const v=parseInt(e.target.value,10);if(v>=0&&st.field.counts){st.field.counts[k]=Math.min(17,v);dirty()}}));
 function renderFacts(){const c=course();
@@ -613,6 +623,10 @@ const mOf=(s,r)=>(S.randAccelSafe&&s.effect==="accel"&&r.random&&r.q25!=null)?r.
 // 70%以上＝必須、40%以上＝推奨、それ未満で0.1バ身以上＝余裕があれば。基準の割合は設定で変えられる
 const TH={best:1,must:1,rec:.5,opt:.1};
 function setTH(best){TH.best=best;TH.must=Math.max(.1,best*(S.mustPct??70)/100);TH.rec=Math.max(.1,best*(S.recPct??40)/100);TH.opt=S.floor??.1}
+// 受けるスタミナデバフ：中盤の前半（距離の45%地点）でまとめて最大体力の3%（金）・1%（白）ずつ減る扱い
+function debuffPlans(ctx,gold,white){const pos=ctx.D*0.45,mk=v=>({pos,dur:0,passive:false,effects:[{target:9,value:v}],alts:[],dep:false});
+  return Array.from({length:gold|0},()=>mk(-300)).concat(Array.from({length:white|0},()=>mk(-100)))}
+const dbOf=ctx=>debuffPlans(ctx,(st.debuff||{}).gold,(st.debuff||{}).white);
 const tierOf=v=>v>=TH.must?"must":v>=TH.rec?"rec":v>=TH.opt?"opt":"none";
 const isInherited=id=>/^9\d{5}$/.test(id);
 // 枠番・人気・出走メンバーなど、レース当日まで分からない条件（期待値を半分にして表示）
@@ -760,7 +774,7 @@ function derive(p){
   const healRows=p.rows.filter(x=>x.s.effect==="heal"&&x.route&&x.r.ok);
   const firstPos=x=>{const pl=UmaSim.planSkill(ctx,x.s,.5);return pl.length?pl[0].pos:1e9};
   healRows.sort((a,b)=>(a.route.kind==="own"?0:1)-(b.route.kind==="own"?0:1)||firstPos(a)-firstPos(b)||(b.s.value||0)-(a.s.value||0));
-  let consPlans=selHeal.slice();
+  let consPlans=selHeal.concat(dbOf(ctx));
   for(const x of healRows){
     const cur=UmaSim.run(p.ctxC,consPlans);
     if(cur.conserveAt==null)break;
@@ -823,7 +837,12 @@ function summarize(p,d){
   const ownHeals=d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.route.kind==="own"&&x.r.ok).flatMap(x=>UmaSim.planSkill(ctx,x.s,.5));
   const healPlans=ownHeals.concat(selHeal);
   const m0heal=ownHeals;
-  const noHeal=UmaSim.run(p.ctxC,[]),withOwn=UmaSim.run(p.ctxC,healPlans),rushOwn=UmaSim.run(p.ctxRush,healPlans);
+  const dbf=dbOf(ctx);
+  const noHeal=UmaSim.run(p.ctxC,dbf),withOwn=UmaSim.run(p.ctxC,healPlans.concat(dbf)),rushOwn=UmaSim.run(p.ctxRush,healPlans.concat(dbf));
+  // デバフ耐性：手持ちの回復（＋選んだ継承固有）で、−3%級をあと何本まで受けても持久力温存が起きないか（設定の本数に上乗せ）
+  let dbTol=-1;
+  if(withOwn.conserveAt==null){dbTol=0;for(let k=1;k<=12;k++){if(UmaSim.run(p.ctxC,healPlans.concat(dbf,debuffPlans(ctx,k,0))).conserveAt!=null)break;dbTol=k}}
+  const dbSet={gold:(st.debuff||{}).gold|0,white:(st.debuff||{}).white|0};
   const short=r=>r.conserveAt==null?0:r.conserveShort;
   const deficit=short(withOwn),deficitNoHeal=short(noHeal),deficitRush=short(rushOwn);
   const unit=withOwn.maxHP*0.055; // 金回復1個（最大体力の5.5%）
@@ -916,7 +935,7 @@ function summarize(p,d){
   const facBest=Math.max(0,...inhW.filter(x=>!x.conserveNeed).map(facV));
   const facTier=x=>x.conserveNeed||facV(x)>=facBest*0.7?"top":facV(x)>=facBest*0.4?"high":"norm";
   const fac={top:inhW.filter(x=>facTier(x)==="top").slice(0,15),high:inhW.filter(x=>facTier(x)==="high").slice(0,20),norm:inhW.filter(x=>facTier(x)==="norm").slice(0,25),best:facBest};
-  return{noHeal,withOwn,deficit,deficitNoHeal,deficitRush,unit,rushChance:withOwn.rushedChance,accelOwn,accelInh,accel,cands,recIds,sel,red,blue,fac,farm:farmDeck(fac),healPlans};
+  return{dbTol,dbSet,noHeal,withOwn,deficit,deficitNoHeal,deficitRush,unit,rushChance:withOwn.rushedChance,accelOwn,accelInh,accel,cands,recIds,sel,red,blue,fac,farm:farmDeck(fac),healPlans};
 }
 
 // ===== おすすめのスキル構成：SPの予算内で、効果を積み上げて1個ずつ選ぶ（同じ区間で重なる効果は、追加分だけで評価） =====
@@ -1089,7 +1108,7 @@ function renderSheet(p){
     </div>
     ${sec("summary","判定サマリー",`<div class="kpis">
       <div class="kpi"><span class="k">スタミナ（持久力温存）</span><span class="v">${ok?"起きない":"−"+Math.round(m.deficit)}</span>
-        <span class="d">${stState} ${conserveNote}。掛かり率${(m.rushChance*100).toFixed(1)}%を期待値で反映。${compNote?`位置取りの消費：${compNote}。`:""}${m.deficitRush>0?`<br>掛かりが最大12秒続くと約${Math.round(m.deficitRush)}不足（金回復 約${(m.deficitRush/m.unit).toFixed(1)}個分）`:"<br>掛かりが最大12秒続いても起きない"}</span></div>
+        <span class="d">${stState} ${conserveNote}。掛かり率${(m.rushChance*100).toFixed(1)}%を期待値で反映。${m.dbSet.gold||m.dbSet.white?`スタミナデバフ（−3%級${m.dbSet.gold}本・−1%級${m.dbSet.white}本）を受ける前提。`:""}<br>${m.dbTol<0?"スタミナデバフに耐える余裕はない":m.dbTol>=12?"スタミナデバフ（−3%級）を12本以上受けても起きない":m.dbTol===0?`スタミナデバフ（−3%級）を${m.dbSet.gold||m.dbSet.white?"これ以上":""}1本受けると起きる`:`スタミナデバフ（−3%級）を${m.dbSet.gold||m.dbSet.white?"さらに":""}${m.dbTol}本まで受けても起きない（${m.dbTol+1}本目で起きる）`}。${compNote?`位置取りの消費：${compNote}。`:""}${m.deficitRush>0?`<br>掛かりが最大12秒続くと約${Math.round(m.deficitRush)}不足（金回復 約${(m.deficitRush/m.unit).toFixed(1)}個分）`:"<br>掛かりが最大12秒続いても起きない"}</span></div>
       <div class="kpi"><span class="k">終盤の加速</span><span class="v">${A.reach1.reachPos!=null?Math.round(A.reach1.reachPos-A.reach1.lateStart)+"<small>mで最高速度</small>":"届かない"}</span>
         <span class="d">${accOk?'<span class="state st-ok">足りる</span>':'<span class="state st-ng">足りない</span>'} 加速スキルなしだと${rd(A.reach0)}で最高速度に届く。手持ちの加速${m.accelOwn}個で${rd(A.reach1)}に短縮${A.rand?`（ランダム位置の加速${A.rand}個は数えていない）`:""}。白因子の加速をもう1個足すと最大${A.bestNext.toFixed(2)}バ身${A.bestAcc?`（${esc(A.bestAcc.s.name)}）`:""}、加速以外で因子化できるいちばん良いスキルは${A.alt.toFixed(2)}バ身${A.altSkill?`（${esc(A.altSkill.s.name)}）`:""}。${accOk?"加速以外に因子の枠を使ったほうが得なので、加速は足りています":"加速を足したほうが得なので、加速の因子を優先しましょう"}</span></div>
       <div class="kpi"><span class="k">白因子で拾うスキル</span><span class="v">${m.fac.top.length}<small> 超優先</small> ${m.fac.high.length}<small> 優先</small></span><span class="d">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントで取れない白スキルのうち、効果の大きいもの</span></div>
