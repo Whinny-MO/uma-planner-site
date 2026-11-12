@@ -896,8 +896,12 @@ function summarize(p,d){
   const blue=deficit>0?`スタミナ（デッキ・固有・選んだ継承固有の回復だけでは、中盤で持久力温存が起きる。体力が約${Math.round(deficit)}足りない）`:"スピード（持久力温存は起きない見込み）";
   // 因子化する白スキルの優先度（超優先15件・優先20件・通常25件まで）
   const facV=x=>x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj;
-  const inhW=d.reps.filter(x=>x.route.kind==="inh"&&x.tier!=="none"&&!(S.passSpdOnly&&x.statPassive)&&!(S.lotteryOut&&isLottery(x.s))).sort((q,r)=>facV(r)-facV(q));
-  const fac={top:inhW.filter(x=>x.tier==="must").slice(0,15),high:inhW.filter(x=>x.tier==="rec").slice(0,20),norm:inhW.filter(x=>x.tier==="opt").slice(0,25)};
+  // 因子化の段階：このプランでいちばん伸びる白因子スキルを基準に、70%以上＝超優先、40%以上＝優先、それ未満で0.1バ身以上＝通常。
+  // 持久力温存の回避に必要な回復は、伸びに関係なく超優先
+  const inhW=d.reps.filter(x=>x.route.kind==="inh"&&x.r.ok&&(x.conserveNeed||facV(x)>=0.1)&&!(S.passSpdOnly&&x.statPassive)&&!(S.lotteryOut&&isLottery(x.s))).sort((q,r)=>(r.conserveNeed-q.conserveNeed)||facV(r)-facV(q));
+  const facBest=Math.max(0,...inhW.filter(x=>!x.conserveNeed).map(facV));
+  const facTier=x=>x.conserveNeed||facV(x)>=facBest*0.7?"top":facV(x)>=facBest*0.4?"high":"norm";
+  const fac={top:inhW.filter(x=>facTier(x)==="top").slice(0,15),high:inhW.filter(x=>facTier(x)==="high").slice(0,20),norm:inhW.filter(x=>facTier(x)==="norm").slice(0,25),best:facBest};
   return{noHeal,withOwn,deficit,deficitNoHeal,deficitRush,unit,rushChance:withOwn.rushedChance,accelOwn,accelInh,accel,cands,recIds,sel,red,blue,fac,farm:farmDeck(fac),healPlans};
 }
 
@@ -1041,7 +1045,7 @@ function renderSheet(p){
       <p class="hint">デッキ案に入らなかったカードのうち、因子化したいスキルのヒントを2種類以上持つものです（入れ替え候補）。</p>
       <div class="deck farm">${farm.others.map(c=>`<div class="slot"><div class="top"><span class="type" style="background:${TYPE_COLOR[c.sp.type]||"#999"}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span><span class="hint" style="margin-left:auto">${c.g.size}種類</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${[...c.g].sort((a,b)=>farm.w(b)-farm.w(a)).map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
     </details>`:""}`:'<p class="hint">因子化したいスキルがないため、デッキ案はありません。</p>';
-  const facHtml=`<p class="hint">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントでは取れず、白因子で継承したい白スキルです（数字は期待バ身。手持ちのスキルと合わせて走らせたときに増える分）。${S.passSpdOnly?"スピード以外のステータスを上げるパッシブは除いています。":""}超優先＝期待バ身${S.must}以上（最大15件）、優先＝${S.rec}以上（最大20件）、通常＝${S.opt}以上（最大25件）。</p>${facRow("超優先","ft-top",m.fac.top,15)}${facRow("優先","ft-high",m.fac.high,20)}${facRow("通常","ft-norm",m.fac.norm,25)}`;
+  const facHtml=`<p class="hint">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントでは取れず、白因子で継承したい白スキルです（数字は期待バ身。手持ちのスキルと合わせて走らせたときに増える分）。${S.passSpdOnly?"スピード以外のステータスを上げるパッシブは除いています。":""}段階は、このプランでいちばん伸びるスキル（${m.fac.best.toFixed(2)}バ身）を基準に、70%以上（${(m.fac.best*0.7).toFixed(2)}バ身以上）＝超優先（最大15件）、40%以上（${(m.fac.best*0.4).toFixed(2)}バ身以上）＝優先（最大20件）、それ未満で0.1バ身以上＝通常（最大25件）。持久力温存の回避に必要な回復は超優先です。</p>${facRow("超優先","ft-top",m.fac.top,15)}${facRow("優先","ft-high",m.fac.high,20)}${facRow("通常","ft-norm",m.fac.norm,25)}`;
   const dd=new Date(),ds=`${dd.getFullYear()}/${dd.getMonth()+1}/${dd.getDate()}`;
   const stat=[["spd","スピード"],["sta","スタミナ"],["pow","パワー"],["gut","根性"],["wit","賢さ"]];
   const full=st.inherit.length>=6;
