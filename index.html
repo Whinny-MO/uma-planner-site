@@ -1064,6 +1064,22 @@ function staRecheck(p,d,m,L,noAdd){
   if(m.withOwn.conserveAt==null){m.dbTol=0;for(let k=1;k<=12;k++){if(UmaSim.run(p.ctxC,withC.concat(debuffPlans(ctx,k,0))).conserveAt!=null)break;m.dbTol=k}}
   return added;
 }
+// スキル判定の段階をおすすめ構成と連動させる：構成に入るスキル＝推奨以上、そのうち積み上げの伸びが大きい上位3分の1＝必須
+// （温存回避に必要な回復は必須）。構成に入らないものは「そのほか（参考）」
+function tierByLoadout(d,L){
+  const inL=new Map(L.picked.map(k=>[k.x,k]));
+  const ranked=L.picked.filter(k=>!k.forced).sort((a,b)=>(b.gain||0)-(a.gain||0));
+  const nMust=Math.ceil(ranked.length/3);
+  const must=new Set(ranked.slice(0,nMust).map(k=>k.x));
+  for(const x of d.reps){
+    const k=inL.get(x);
+    if(k&&(k.forced||x.conserveNeed))x.tier="must";
+    else if(k)x.tier=must.has(x)?"must":"rec";
+    else x.tier=(x.tierV??x.expAdj)>=TH.opt?"opt":"none";
+    x.ldGain=k&&k.gain!=null?k.gain:null;
+  }
+  return{nMust,n:ranked.length};
+}
 function buildLoadout(p,d,m,ownOnly){
   const ctx=p.ctx,budget=st.spBudget??3000;
   const isPassive=s=>(s.ep||[]).length>0&&s.ep.every(q=>q.baseTime<0);
@@ -1179,6 +1195,7 @@ function evalDeck(p,cards){
   const d=derive(q);let m=summarize(q,d);let L=buildLoadout(q,d,m);
   if(staRecheck(q,d,m,L)){m=summarize(q,d);L=buildLoadout(q,d,m);staRecheck(q,d,m,L,true)}
   const Lo=buildLoadout(q,d,m,true);
+  tierByLoadout(d,L);
   return{d,m,L,Lo,th:{...TH}};
 }
 async function runVerify(){
@@ -1291,6 +1308,7 @@ function renderSheet(p){
   if(staRecheck(p,d,m,L)){m=summarize(p,d);L=buildLoadout(p,d,m);staRecheck(p,d,m,L,true)}
   for(const x of d.reps)x.inLoadout=false;
   L.picked.forEach(k=>k.x.inLoadout=true);
+  const tl=tierByLoadout(d,L);
   const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
     <div class="kpis"><div class="kpi"><span class="k">使うSP</span><span class="v">${L.used}<small> / ${L.budget}pt</small></span><span class="d">${L.inhN?`継承固有${L.inhN}個（1個${L.inhCost}pt）を含む。`:""}残り${Math.max(0,L.budget-L.used)}pt</span></div>
     <div class="kpi"><span class="k">構成全体の期待バ身</span><span class="v">${L.total.toFixed(2)}<small>バ身</small></span><span class="d">選んだ継承固有・温存回避の回復の分は含まない</span></div></div>
@@ -1364,7 +1382,7 @@ function renderSheet(p){
     </div>`)}
     ${d.guide.length?sec("guide","イベントの選び方（サポカ・シナリオ）",`<p class="hint">金スキルが取れるイベントだけを表示しています。選択肢をタップすると取得予定を変更できます。初期値はおすすめの選択肢で、ここに出ていないイベントもおすすめの選択肢を取る前提で判定しています。</p><div class="guide">${guideHtml}</div>`):""}
     ${sec("skills","スキル判定",`<div style="display:grid;gap:12px">${groups}
-      <p class="hint">段階は、入手できるスキルで期待バ身がいちばん高いもの（${TH.best.toFixed(2)}バ身）を基準に、${S.mustPct??70}%以上（${TH.must.toFixed(2)}バ身〜）を必須、${S.recPct??40}%以上（${TH.rec.toFixed(2)}バ身〜）を推奨としています。それ未満は「そのほか（参考）」にまとめて折りたたんでいます。残りのSPで取るスキルは「おすすめのスキル構成」を見てください。同じ系統（○→◎→金）は、入手できる段階のうち期待バ身が最も高いものを1行で表示しています。上の段階を取るには下の段階も必要なため、SPは下位込みの合計です。持久力温存の回避に必要な回復は必須に入れています。このレースで発動しないスキル：${p.dead.length}件（表示を省略）</p>
+      <p class="hint">段階は「おすすめのスキル構成」（使えるSP ${L.budget}ptの中で選んだ${tl.n}件）と連動しています。構成に入るスキルが推奨以上で、そのうち積み上げたときの伸びが大きい上位3分の1（${tl.nMust}件）を必須にしています。構成に入らないスキルは「そのほか（参考）」にまとめて折りたたんでいます。SPの予算を増やすと推奨が増えます。同じ系統（○→◎→金）は、入手できる段階のうち期待バ身が最も高いものを1行で表示しています。上の段階を取るには下の段階も必要なため、SPは下位込みの合計です。持久力温存の回避に必要な回復は必須に入れています。このレースで発動しないスキル：${p.dead.length}件（表示を省略）</p>
     </div>`)}
     <p class="foot">期待バ身＝獲得バ身×発動率（賢さ${st.stats.wit}で約${Math.round(p.rate*100)}%）。1人走行の近似計算です。コース補正ステータス（スピード×${p.courseMod.toFixed(2)}）・掛かり・下り坂加速・賢さの揺らぎは期待値で反映し、位置取り争い・リード確保の体力消費は設定の値で反映しています（ブロックは含みません）。全開スパートは${p.ctx.ft.on?"仮モデルで反映しています":"含みません"}。データ出典：${esc(D.meta.source)}（${esc((D.meta.fetchedAt||"").slice(0,10))}取得）、サポカのイベントの照合にGameTora、開催イベントの条件にgamebiz（Cygames発表の転載）とU-tools、シナリオの上限ステータスに神ゲー攻略。</p>
   </div>`;
