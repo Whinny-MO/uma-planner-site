@@ -874,6 +874,11 @@ function derive(p){
     const own=list.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
     const ok=own.length?own:list.filter(x=>x.route&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
     if(!ok.length)continue;
+    // ○→◎の系統（直線・コーナー・回り・距離・脚質など）：○が手持ちの経路で取れて、◎を白因子で狙えるなら◎まで取る（実際の育成に合わせる）
+    if(own.length&&/○$/.test(own[0].s.name)){
+      const top=own[0],dbl=list.find(x=>x.route&&x.route.kind==="inh"&&x.r.ok&&/◎$/.test(x.s.name)&&x.expAdj>top.expAdj+0.02);
+      if(dbl){dbl.route={...dbl.route,label:`○は${top.route.label}／◎は白因子で継承`,lowOwn:true};reps.push(dbl);continue}
+    }
     if(ok[0].route.scEvo){
       // シナリオ進化の候補：進化しなかった場合の代わり（同じ系統でいちばん良い段階）との差を伸びとする
       const alt=ok.find(x=>!x.route.scEvo)||null;
@@ -1134,7 +1139,7 @@ function buildLoadout(p,d,m,ownOnly){
   const score=e=>e.cost>0?e.ub/e.cost:e.ub*1e6;
   // 2段階で選ぶ：まず確実に取れる経路（デッキ・イベント・固有・初期/覚醒・シナリオ）で予算を使い、残りのSPで白因子のスキルを足す
   for(const phase of ["own","inh"]){
-  const q=cand.filter(e=>(e.x.route.kind==="own")===(phase==="own"));
+  const q=cand.filter(e=>(e.x.route.kind==="own"||!!e.x.route.lowOwn)===(phase==="own"));
   while(q.length&&picked.length<60){
     q.sort((a,b)=>score(b)-score(a));
     const e=q.shift();
@@ -1351,7 +1356,7 @@ function renderSheet(p){
   for(const x of d.reps)x.inLoadout=false;
   L.picked.forEach(k=>k.x.inLoadout=true);
   const tl=tierByLoadout(d,L);
-  const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。まず確実に取れる経路（デッキ・イベント・固有・初期/覚醒・シナリオ）のスキルで予算を使い、残ったSPで白因子で継承するスキルを足しています。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
+  const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。まず確実に取れる経路（デッキ・イベント・固有・初期/覚醒・シナリオ）のスキルで予算を使い、残ったSPで白因子で継承するスキルを足しています。○を手持ちの経路で取れる系統は、◎を白因子で狙って◎まで取る前提です。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
     <div class="kpis"><div class="kpi"><span class="k">使うSP</span><span class="v">${L.used}<small> / ${L.budget}pt</small></span><span class="d">${L.inhN?`継承固有${L.inhN}個（1個${L.inhCost}pt）を含む。`:""}残り${Math.max(0,L.budget-L.used)}pt</span></div>
     <div class="kpi"><span class="k">構成全体の期待バ身</span><span class="v">${L.total.toFixed(2)}<small>バ身</small></span><span class="d">選んだ継承固有・温存回避の回復の分は含まない</span></div></div>
     <ol class="ulist lout">${L.picked.map(k=>`<li class="l-${rcls(k.x.s)}"><span><b>${esc(k.x.s.name)}</b>${rcls(k.x.s)==="gold"?'<span class="rtag gold">金</span>':rcls(k.x.s)==="evo"?'<span class="rtag evo">進化</span>':""}<small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
