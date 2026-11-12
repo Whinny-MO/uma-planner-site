@@ -229,6 +229,9 @@ details.sub>.tier{margin-top:6px}
 .facrow{display:grid;grid-template-columns:64px 1fr;gap:8px;align-items:start}
 .ftier{font-size:12px;font-weight:800;color:#fff;text-align:center;border-radius:999px;padding:2px 0}
 .ft-top{background:var(--must)}.ft-high{background:var(--opt)}.ft-norm{background:var(--none)}
+.facrow .chip.cov{border-radius:12px;background:#dff3c9;color:#2f5d10;box-shadow:inset 0 0 0 1.5px #8cc65a}
+.facrow .chip.cov i{font-style:normal;font-weight:700;font-size:10px;color:#4f7a2c;margin-left:4px}
+.covline{background:#f1f9e8;border-radius:10px;padding:6px 10px}
 .facrow .chip b{color:var(--ink);font-variant-numeric:tabular-nums}
 .guide{display:grid;gap:8px}
 .gcard{border:2px solid var(--line);border-radius:12px;padding:8px 10px;display:grid;gap:6px}
@@ -263,8 +266,9 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
     <button class="tab" data-step="uma"><span class="no">2</span>ウマ娘</button>
     <button class="tab" data-step="deck"><span class="no">3</span>デッキ</button>
     <button class="tab" data-step="plan"><span class="no">4</span>プラン</button>
-    <button class="tab" data-step="verify"><span class="no">5</span>サポカ検証</button>
-    <button class="tab" data-step="settings"><span class="no">6</span>設定</button>
+    <button class="tab" data-step="farm"><span class="no">5</span>因子周回</button>
+    <button class="tab" data-step="verify"><span class="no">6</span>サポカ検証</button>
+    <button class="tab" data-step="settings"><span class="no">7</span>設定</button>
   </div></nav>
 
   <section class="panel" id="p-race">
@@ -366,6 +370,15 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
       <label class="f">共有コードから開く<textarea id="shareIn" rows="3" placeholder="UMAPLAN1:… を貼り付け" style="width:100%;font:inherit;font-size:12px;border:2px solid var(--line);border-radius:12px;padding:8px;background:var(--sunk);color:var(--ink)"></textarea></label>
       <div class="btnrow"><button class="btn grow" id="btnShareOpen">このコードのプランを開く</button></div>
     </div></div>
+  </section>
+
+  <section class="panel" id="p-farm" hidden>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>因子周回デッキ</h2></div><div class="card-b">
+      <p class="hint">実際に因子周回で使うデッキを設定すると、プランの「因子化するスキル」のうち、このデッキのカードがヒント（トレーニング・イベント）で持っているスキルを強調表示します。○と◎は同じ系統として扱います。ヒントが出る確率は考慮していません。</p>
+      <div class="deck" id="farmSlots"></div>
+      <div class="btnrow"><button class="btn grow" type="button" id="farmFromPlan">デッキ案をそのまま入れる</button><button class="btn grow" type="button" id="farmClear">全部外す</button></div>
+    </div></div>
+    <div id="farmCov"></div>
   </section>
 
   <section class="panel" id="p-verify" hidden>
@@ -506,7 +519,8 @@ function apts(){const ch=chara(),c=course(),cat=distCat(c.dist);
 let planDirty=true, lastPlan=null;
 function setStep(name){
   document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-current",b.dataset.step===name?"true":"false"));
-  ["race","uma","deck","plan","verify","settings"].forEach(n=>{$("#p-"+n).hidden=n!==name});
+  ["race","uma","deck","plan","farm","verify","settings"].forEach(n=>{$("#p-"+n).hidden=n!==name});
+  if(name==="farm"&&D)renderFarm();
   if(name==="verify"&&D)renderVerify();
   if(name==="plan"&&D)computeAndRender();
   if(name==="settings")renderSettings();
@@ -633,10 +647,11 @@ $("#btnCaps").addEventListener("click",()=>{const c=capsOf(scenario());if(!c){to
 $("#spBudget").addEventListener("input",e=>{const v=parseInt(e.target.value,10);if(v>=0){st.spBudget=v;persist()}});
 
 /* ---------- 3. デッキ ---------- */
-function renderDeck(){
-  const wrap=$("#deckSlots");wrap.innerHTML="";
+function renderDeck(){renderDeckInto($("#deckSlots"),st.deck,()=>{dirty();renderDeck()})}
+function renderDeckInto(wrap,arr,changed){
+  wrap.innerHTML="";
   for(let i=0;i<6;i++){
-    const cd=SP[st.deck[i]];
+    const cd=SP[arr[i]];
     const d=document.createElement("div");d.className="slot";
     if(cd)d.style.borderColor=TYPE_COLOR[cd.type]||"var(--line)";
     // ヒントのスキルを表示。友人などヒントのないカードは、イベントで取れるスキル（金を先）を表示
@@ -647,16 +662,16 @@ function renderDeck(){
       <div class="chips">${sk.slice(0,10).map(s=>`<span class="chip${s.rarity==="gold"?" gold":""}">${esc(s.name)}</span>`).join("")}${sk.length>10?`<span class="chip">ほか${sk.length-10}件</span>`:""}</div>
 `;
     wrap.appendChild(d);
-    d.querySelector(".pick").addEventListener("click",()=>pickSupport(i));
-    const cl=d.querySelector("[data-clear]");if(cl)cl.addEventListener("click",()=>{st.deck[i]=null;dirty();renderDeck()});
+    d.querySelector(".pick").addEventListener("click",()=>pickSupport(i,arr,changed));
+    const cl=d.querySelector("[data-clear]");if(cl)cl.addEventListener("click",()=>{arr[i]=null;changed()});
   }
 }
-function pickSupport(i){
+function pickSupport(i,arr,changed){
   const items=D.supports.filter(s=>s.rarity!=="R").map(s=>({s,search:`${s.name}${s.title}`}));
   openPicker({title:`${i===5?"フレンド枠":"枠"+(i+1)}のカード`,items,
     filters:{opts:["すべて","スピード","スタミナ","パワー","根性","賢さ","友人","グループ"],test:(it,f)=>it.s.type===f},
     render:it=>`<span class="type" style="background:${TYPE_COLOR[it.s.type]||"#999"}">${esc(it.s.rarity)}</span><span><span class="t">${esc(it.s.title)}</span><span class="n">${esc(it.s.name)}</span></span>`,
-    onPick:it=>{st.deck[i]=it.s.id;dirty();renderDeck()}});
+    onPick:it=>{arr[i]=it.s.id;changed()}});
 }
 
 /* ---------- 判定（エンジン呼び出し） ---------- */
@@ -874,6 +889,23 @@ function farmDeck(fac){
   const others=cards.filter(c=>!picked.includes(c)&&c.g.size>=2).map(c=>({...c,score:[...c.g].reduce((t,g)=>t+want.get(g).w,0)+(c.sp.rarity==="SSR"?0.01:0)}))
     .sort((a,b)=>b.score-a.score||b.g.size-a.g.size).slice(0,10);
   return{picked,others,tc:{top:tierCount("top"),high:tierCount("high"),norm:tierCount("norm")},name:g=>SK[want.get(g).id].name,w:g=>want.get(g).w};
+}
+
+// 因子周回デッキのカバー判定：因子化するスキルごとに、ヒント（トレーニング・イベント）で持っているカードの名前。○と◎は同じ系統として扱う
+function facRowHtml(label,cls,list,cap,fcov){
+  return `<div class="facrow"><span class="ftier ${cls}">${label}<small>${list.length}/${cap}</small></span><div class="chips">${list.length?list.map(x=>{const c=fcov&&fcov.who.get(x.s.id);return`<span class="chip${c?" cov":""}"${c?` title="${esc(c.join("・"))}"`:""}>${esc(x.s.name)} <b>${(x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj).toFixed(2)}</b>${c?`<i>${esc(c.join("・"))}</i>`:""}</span>`}).join(""):'<span class="hint">なし</span>'}</div></div>`;
+}
+const covLine=f=>f?`<p class="hint covline">因子周回デッキのカバー：超優先 ${f.tc.top.hit}/${f.tc.top.all}・優先 ${f.tc.high.hit}/${f.tc.high.all}・通常 ${f.tc.norm.hit}/${f.tc.norm.all}（緑の背景がカバー済み）${f.miss.length?`<br>カバーできていない超優先・優先：${f.miss.map(x=>esc(x.s.name)).join("・")}`:""}</p>`:"";
+function farmCover(fac,ids){
+  const cards=(ids||[]).map(id=>SP[id]).filter(Boolean);
+  if(!cards.length||!fac)return null;
+  const grpOf=id=>{const k=SK[id];return k?(k.groupId||k.id):id};
+  const byG=new Map();
+  for(const cd of cards)for(const id of new Set([...cd.skillIds,...(cd.eventSkillIds||[])])){const k=SK[id];if(!k||k.rarity!=="white")continue;const g=grpOf(id);if(!byG.has(g))byG.set(g,[]);if(!byG.get(g).includes(cd.name))byG.get(g).push(cd.name)}
+  const who=new Map();
+  for(const t of ["top","high","norm"])for(const x of fac[t]){const c=byG.get(grpOf(x.s.id));if(c)who.set(x.s.id,c)}
+  const cnt=t=>({all:fac[t].length,hit:fac[t].filter(x=>who.has(x.s.id)).length});
+  return{who,tc:{top:cnt("top"),high:cnt("high"),norm:cnt("norm")},miss:[...fac.top,...fac.high].filter(x=>!who.has(x.s.id))};
 }
 
 // 継承固有の選択・集計（選択を変えたときはここだけやり直す）
@@ -1105,7 +1137,27 @@ function skRow(x){
     <div class="nm"${cl?` data-conn="${cl}"`:""}>${esc(s.name)}</div><div class="sc">${(x.expAdj??x.exp).toFixed(2)}<small>バ身</small></div>
     <div class="ds"><span>${meta.map(esc).join("・")}</span><span class="src src-${route.kind}">${esc(route.label)}</span></div></div>`}
 
-/* ---------- 5. サポカ検証 ---------- */
+/* ---------- 5. 因子周回 ---------- */
+function renderFarm(){
+  st.farmDeck=Array.isArray(st.farmDeck)?st.farmDeck.concat([null,null,null,null,null,null]).slice(0,6):[null,null,null,null,null,null];
+  renderDeckInto($("#farmSlots"),st.farmDeck,()=>{persist();renderFarm()});
+  const out=$("#farmCov");
+  if(planDirty||!lastPlan||!lastM){out.innerHTML=`<div class="card"><div class="card-b"><p class="hint">カバーの判定には、プランの「因子化するスキル」を使います。条件を変えたあとは、先にプランを作成してください。</p><div class="btnrow"><button class="btn primary grow" type="button" data-go2="plan">プランを作成</button></div></div></div>`;
+    out.querySelector("[data-go2]").addEventListener("click",()=>setStep("plan"));return}
+  const fac=lastM.fac,f=farmCover(fac,st.farmDeck),cap=Math.max(25,Math.min(40,Math.round(S.facNorm||35)));
+  out.innerHTML=`<div class="card"><div class="card-h"><span class="mk"></span><h2>因子化するスキルのカバー</h2></div><div class="card-b">
+    ${f?covLine(f):'<p class="hint">因子周回デッキを設定すると、カバーできているスキルを緑の背景で表示します。</p>'}
+    ${facRowHtml("超優先","ft-top",fac.top,15,f)}${facRowHtml("優先","ft-high",fac.high,20,f)}${facRowHtml("通常","ft-norm",fac.norm,cap,f)}
+  </div></div>`;
+}
+$("#farmFromPlan").addEventListener("click",()=>{
+  const fm=lastM&&lastM.farm;
+  if(!fm||!fm.picked.length){toast("先にプランを作成してください");return}
+  st.farmDeck=fm.picked.map(c=>c.sp.id).concat([null,null,null,null,null,null]).slice(0,6);persist();renderFarm();toast("デッキ案を入れました");
+});
+$("#farmClear").addEventListener("click",()=>{st.farmDeck=[null,null,null,null,null,null];persist();renderFarm()});
+
+/* ---------- 6. サポカ検証 ---------- */
 function renderVerify(){
   st.verify=st.verify||{slot:0,cand:null};
   const v=st.verify;
@@ -1243,7 +1295,7 @@ function renderSheet(p){
     <div class="kpis"><div class="kpi"><span class="k">使うSP</span><span class="v">${L.used}<small> / ${L.budget}pt</small></span><span class="d">${L.inhN?`継承固有${L.inhN}個（1個${L.inhCost}pt）を含む。`:""}残り${Math.max(0,L.budget-L.used)}pt</span></div>
     <div class="kpi"><span class="k">構成全体の期待バ身</span><span class="v">${L.total.toFixed(2)}<small>バ身</small></span><span class="d">選んだ継承固有・温存回避の回復の分は含まない</span></div></div>
     <ol class="ulist lout">${L.picked.map(k=>`<li><span><b>${esc(k.x.s.name)}</b><small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
-  lastExport={p,d,m,L,connList};
+  lastExport={p,d,m,L,connList};lastM=m;
   const w=m.withOwn,ok=m.deficit<=0,okNo=m.deficitNoHeal<=0;
   const stState=okNo?'<span class="state st-ok">回復なしで起きない</span>':ok?'<span class="state st-warn">回復スキルで回避できる</span>':'<span class="state st-ng">起きる</span>';
   const conserveNote=w.conserveAt!=null?`中盤の約${Math.round(w.conserveAt)}m地点で体力が約${Math.round(m.deficit)}不足（金回復 約${(m.deficit/m.unit).toFixed(1)}個分、白回復なら約${(m.deficit/m.unit*5.5/1.5).toFixed(1)}個分）。この地点より前に発動する回復が必要`:(m.deficitNoHeal>0?`回復なしだと約${Math.round(m.deficitNoHeal)}不足（金回復 約${(m.deficitNoHeal/m.unit).toFixed(1)}個分）するが、入手できる回復で補える`:"中盤を通して、残りを全力で走り切る体力が残る");
@@ -1254,7 +1306,8 @@ function renderSheet(p){
   const tiers=[["must","必須","var(--must)"],["rec","推奨","var(--rec)"],["rest","そのほか（参考）","var(--none)"]];
   const groups=tiers.map(([t,l,col])=>{const rs=d.reps.filter(x=>x.tier===t||(t==="rest"&&(x.tier==="opt"||x.tier==="none"))).sort((a,b)=>(b.conserveNeed-a.conserveNeed)||(b.tierV??b.expAdj)-(a.tierV??a.expAdj));if(!rs.length)return"";
     return `<details class="tier sub" data-sec="tier-${t}"${(SEC_OPEN["tier-"+t]??(t==="must"||t==="rec"))?" open":""}><summary class="tier-h"><span class="tg" style="background:${col}">${l}</span><span class="n">${rs.length}件</span><span class="chev" aria-hidden="true"></span></summary><div class="tier">${rs.map(skRow).join("")}</div></details>`}).join("");
-  const facRow=(label,cls,list,cap)=>`<div class="facrow"><span class="ftier ${cls}">${label}<small>${list.length}/${cap}</small></span><div class="chips">${list.length?list.map(x=>`<span class="chip">${esc(x.s.name)} <b>${(x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj).toFixed(2)}</b></span>`).join(""):'<span class="hint">なし</span>'}</div></div>`;
+  const fcov=farmCover(m.fac,st.farmDeck);
+  const facRow=(label,cls,list,cap)=>facRowHtml(label,cls,list,cap,fcov);
   const farm=m.farm;
   const farmHtml=farm&&farm.picked.length?`<p class="hint">因子周回のデッキ案です。因子化したいスキルのヒントを持つサポカを、超優先＝3点・優先＝2点・通常＝1点の重みで、カバーが広くなるように6枚選んでいます（○と◎は同じ系統として扱います）。カードの育成性能は考慮していないので、編成の土台として使ってください。</p>
     <div class="deck farm">${farm.picked.map((c,i)=>`<div class="slot"><div class="top"><span class="no">${i+1}</span><span class="type" style="background:${TYPE_COLOR[c.sp.type]||"#999"}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${c.newG.map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
@@ -1263,7 +1316,7 @@ function renderSheet(p){
       <p class="hint">デッキ案に入らなかったカードのうち、因子化したいスキルのヒントを2種類以上持つものです（入れ替え候補）。</p>
       <div class="deck farm">${farm.others.map(c=>`<div class="slot"><div class="top"><span class="type" style="background:${TYPE_COLOR[c.sp.type]||"#999"}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span><span class="hint" style="margin-left:auto">${c.g.size}種類</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${[...c.g].sort((a,b)=>farm.w(b)-farm.w(a)).map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
     </details>`:""}`:'<p class="hint">因子化したいスキルがないため、デッキ案はありません。</p>';
-  const facHtml=`<p class="hint">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントでは取れず、白因子で継承したい白スキルです（数字は期待バ身。手持ちのスキルと合わせて走らせたときに増える分）。${S.passSpdOnly?"スピード以外のステータスを上げるパッシブは除いています。":""}段階は、このプランでいちばん伸びるスキル（${m.fac.best.toFixed(2)}バ身）を基準に、70%以上（${(m.fac.best*0.7).toFixed(2)}バ身以上）＝超優先（最大15件）、40%以上（${(m.fac.best*0.4).toFixed(2)}バ身以上）＝優先（最大20件）、それ未満で0.1バ身以上＝通常（最大${Math.max(25,Math.min(40,Math.round(S.facNorm||35)))}件、設定で変更可）。持久力温存の回避に必要な回復は超優先です。</p>${facRow("超優先","ft-top",m.fac.top,15)}${facRow("優先","ft-high",m.fac.high,20)}${facRow("通常","ft-norm",m.fac.norm,Math.max(25,Math.min(40,Math.round(S.facNorm||35))))}`;
+  const facHtml=`<p class="hint">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントでは取れず、白因子で継承したい白スキルです（数字は期待バ身。手持ちのスキルと合わせて走らせたときに増える分）。${S.passSpdOnly?"スピード以外のステータスを上げるパッシブは除いています。":""}段階は、このプランでいちばん伸びるスキル（${m.fac.best.toFixed(2)}バ身）を基準に、70%以上（${(m.fac.best*0.7).toFixed(2)}バ身以上）＝超優先（最大15件）、40%以上（${(m.fac.best*0.4).toFixed(2)}バ身以上）＝優先（最大20件）、それ未満で0.1バ身以上＝通常（最大${Math.max(25,Math.min(40,Math.round(S.facNorm||35)))}件、設定で変更可）。持久力温存の回避に必要な回復は超優先です。</p>${covLine(fcov)}${facRow("超優先","ft-top",m.fac.top,15)}${facRow("優先","ft-high",m.fac.high,20)}${facRow("通常","ft-norm",m.fac.norm,Math.max(25,Math.min(40,Math.round(S.facNorm||35))))}`;
   const dd=new Date(),ds=`${dd.getFullYear()}/${dd.getMonth()+1}/${dd.getDate()}`;
   const stat=[["spd","スピード"],["sta","スタミナ"],["pow","パワー"],["gut","根性"],["wit","賢さ"]];
   const full=st.inherit.length>=6;
@@ -1332,7 +1385,7 @@ function renderSheet(p){
 }
 
 /* ---------- 保存用のコンパクトなシート ---------- */
-let lastExport=null;
+let lastExport=null,lastM=null;
 function buildExportHtml(){
   const {p,d,m,L,connList}=lastExport;const c=p.c,ch=p.ch,w=m.withOwn,A=m.accel;
   const ev=(D.events||[]).find(e=>e.courseId===c.id&&e.kind===st.ev&&(!e.season||e.season===st.season));
@@ -1398,7 +1451,7 @@ function renderSaved(){const list=LS.get("umaplan2.saved",[]);
 const b64u={enc:u8=>{let s="";for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode(...u8.subarray(i,i+0x8000));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")},
   dec:t=>{const s=atob(t.replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(s,c=>c.charCodeAt(0))}};
 async function packPlan(){
-  const keep=["ev","courseId","scenario","ground","weather","season","charaId","style","apt","stats","mood","spBudget","deck","inherit","evChoice","field"];
+  const keep=["ev","courseId","scenario","ground","weather","season","charaId","style","apt","stats","mood","spBudget","deck","inherit","evChoice","field","debuff","farmDeck"];
   const o={v:1,st:Object.fromEntries(keep.map(k=>[k,st[k]]))};
   const raw=new TextEncoder().encode(JSON.stringify(o));
   if(typeof CompressionStream==="function"){
