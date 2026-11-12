@@ -1130,8 +1130,11 @@ function buildLoadout(p,d,m,ownOnly){
   // 持久力温存の回避に必要な回復は先に入れる
   for(const x of d.reps.filter(x=>x.conserveNeed)){const c=skillCost(x)??0;plans=plans.concat(UmaSim.planSkill(ctx,x.s,.5));used+=c;picked.push({x,cost:c,gain:null,forced:true})}
   let baseRun=UmaSim.run(ctx,plans),ver=0;
-  const q=d.reps.filter(x=>x.r.ok&&x.route&&(!ownOnly||x.route.kind==="own")&&!x.conserveNeed&&x.exp>0.02&&!(S.lotteryOut&&isLottery(x.s))).map(x=>({x,cost:skillCost(x)??0,ub:x.exp,ver:-1}));
+  const cand=d.reps.filter(x=>x.r.ok&&x.route&&(!ownOnly||x.route.kind==="own")&&!x.conserveNeed&&x.exp>0.02&&!(S.lotteryOut&&isLottery(x.s))).map(x=>({x,cost:skillCost(x)??0,ub:x.exp,ver:-1}));
   const score=e=>e.cost>0?e.ub/e.cost:e.ub*1e6;
+  // 2段階で選ぶ：まず確実に取れる経路（デッキ・イベント・固有・初期/覚醒・シナリオ）で予算を使い、残りのSPで白因子のスキルを足す
+  for(const phase of ["own","inh"]){
+  const q=cand.filter(e=>(e.x.route.kind==="own")===(phase==="own"));
   while(q.length&&picked.length<60){
     q.sort((a,b)=>score(b)-score(a));
     const e=q.shift();
@@ -1139,7 +1142,8 @@ function buildLoadout(p,d,m,ownOnly){
     if(e.ver!==ver){e.ub=valOf(e.x,plans,baseRun);e.ver=ver;if(q.length&&score(e)<score(q[0])){q.push(e);continue}}
     if(e.ub<0.05)continue;
     plans=plans.concat(UmaSim.planSkill(ctx,e.x.s,.5));used+=e.cost;ver++;baseRun=UmaSim.run(ctx,plans);
-    picked.push({x:e.x,cost:e.cost,gain:e.ub});
+    picked.push({x:e.x,cost:e.cost,gain:e.ub,phase});
+  }
   }
   const total=picked.reduce((t,k)=>t+(k.gain||0),0);
   return{picked,used,budget,total,inhN:m.sel.length,inhCost};
@@ -1314,7 +1318,7 @@ function verifyHtml(A,B,cur,cand,slot){
   </div></div>`;
 }
 document.getElementById("vRun").addEventListener("click",runVerify);
-window.__verify={evalDeck,plan:()=>lastPlan,deck:()=>st.deck.map(id=>SP[id]).filter(Boolean)};
+window.__verify={evalDeck,last:()=>lastExport,plan:()=>lastPlan,deck:()=>st.deck.map(id=>SP[id]).filter(Boolean)};
 
 let computing=false;
 async function computeAndRender(){
@@ -1347,7 +1351,7 @@ function renderSheet(p){
   for(const x of d.reps)x.inLoadout=false;
   L.picked.forEach(k=>k.x.inLoadout=true);
   const tl=tierByLoadout(d,L);
-  const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
+  const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。まず確実に取れる経路（デッキ・イベント・固有・初期/覚醒・シナリオ）のスキルで予算を使い、残ったSPで白因子で継承するスキルを足しています。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
     <div class="kpis"><div class="kpi"><span class="k">使うSP</span><span class="v">${L.used}<small> / ${L.budget}pt</small></span><span class="d">${L.inhN?`継承固有${L.inhN}個（1個${L.inhCost}pt）を含む。`:""}残り${Math.max(0,L.budget-L.used)}pt</span></div>
     <div class="kpi"><span class="k">構成全体の期待バ身</span><span class="v">${L.total.toFixed(2)}<small>バ身</small></span><span class="d">選んだ継承固有・温存回避の回復の分は含まない</span></div></div>
     <ol class="ulist lout">${L.picked.map(k=>`<li class="l-${rcls(k.x.s)}"><span><b>${esc(k.x.s.name)}</b>${rcls(k.x.s)==="gold"?'<span class="rtag gold">金</span>':rcls(k.x.s)==="evo"?'<span class="rtag evo">進化</span>':""}<small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
