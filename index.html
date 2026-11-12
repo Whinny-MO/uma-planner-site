@@ -1047,8 +1047,9 @@ function renderSheet(p){
   const A=m.accel,accOk=A.ok;
   const rd=r=>r.reachPos!=null?`終盤に入ってから約${Math.round(r.reachPos-r.lateStart)}m（${r.reachT.toFixed(1)}秒）`:"終盤のうちに届かない";
   const compNote=[w.spotHp>0?`位置取り争いで約${Math.round(w.spotHp)}`:"",w.secureLeadHp>0?`リード確保（期待${w.secureLeadN.toFixed(1)}回）で約${Math.round(w.secureLeadHp)}`:""].filter(Boolean).join("、");
-  const tiers=[["must","必須","var(--must)"],["rec","推奨","var(--rec)"],["opt","余裕があれば","var(--opt)"],["none","効果が小さい","var(--none)"]];
-  const groups=tiers.map(([t,l,col])=>{const rs=d.reps.filter(x=>x.tier===t).sort((a,b)=>(b.conserveNeed-a.conserveNeed)||(b.tierV??b.expAdj)-(a.tierV??a.expAdj));if(!rs.length)return"";
+  // 余裕があれば・効果が小さいは分けず、「そのほか（参考）」として折りたたんでまとめる（残りのSPで取るものは「おすすめのスキル構成」で見る）
+  const tiers=[["must","必須","var(--must)"],["rec","推奨","var(--rec)"],["rest","そのほか（参考）","var(--none)"]];
+  const groups=tiers.map(([t,l,col])=>{const rs=d.reps.filter(x=>x.tier===t||(t==="rest"&&(x.tier==="opt"||x.tier==="none"))).sort((a,b)=>(b.conserveNeed-a.conserveNeed)||(b.tierV??b.expAdj)-(a.tierV??a.expAdj));if(!rs.length)return"";
     return `<details class="tier sub" data-sec="tier-${t}"${(SEC_OPEN["tier-"+t]??(t==="must"||t==="rec"))?" open":""}><summary class="tier-h"><span class="tg" style="background:${col}">${l}</span><span class="n">${rs.length}件</span><span class="chev" aria-hidden="true"></span></summary><div class="tier">${rs.map(skRow).join("")}</div></details>`}).join("");
   const facRow=(label,cls,list,cap)=>`<div class="facrow"><span class="ftier ${cls}">${label}<small>${list.length}/${cap}</small></span><div class="chips">${list.length?list.map(x=>`<span class="chip">${esc(x.s.name)} <b>${(x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj).toFixed(2)}</b></span>`).join(""):'<span class="hint">なし</span>'}</div></div>`;
   const farm=m.farm;
@@ -1107,7 +1108,7 @@ function renderSheet(p){
     </div>`)}
     ${d.guide.length?sec("guide","イベントの選び方（サポカ・シナリオ）",`<p class="hint">金スキルが取れるイベントだけを表示しています。選択肢をタップすると取得予定を変更できます。初期値はおすすめの選択肢で、ここに出ていないイベントもおすすめの選択肢を取る前提で判定しています。</p><div class="guide">${guideHtml}</div>`):""}
     ${sec("skills","スキル判定",`<div style="display:grid;gap:12px">${groups}
-      <p class="hint">段階は、入手できるスキルで期待バ身がいちばん高いもの（${TH.best.toFixed(2)}バ身）を基準に、${S.mustPct??70}%以上（${TH.must.toFixed(2)}バ身〜）を必須、${S.recPct??40}%以上（${TH.rec.toFixed(2)}バ身〜）を推奨、${TH.opt}バ身以上を余裕があれば、としています。同じ系統（○→◎→金）は、入手できる段階のうち期待バ身が最も高いものを1行で表示しています。上の段階を取るには下の段階も必要なため、SPは下位込みの合計です。持久力温存の回避に必要な回復は必須に入れています。このレースで発動しないスキル：${p.dead.length}件（表示を省略）</p>
+      <p class="hint">段階は、入手できるスキルで期待バ身がいちばん高いもの（${TH.best.toFixed(2)}バ身）を基準に、${S.mustPct??70}%以上（${TH.must.toFixed(2)}バ身〜）を必須、${S.recPct??40}%以上（${TH.rec.toFixed(2)}バ身〜）を推奨としています。それ未満は「そのほか（参考）」にまとめて折りたたんでいます。残りのSPで取るスキルは「おすすめのスキル構成」を見てください。同じ系統（○→◎→金）は、入手できる段階のうち期待バ身が最も高いものを1行で表示しています。上の段階を取るには下の段階も必要なため、SPは下位込みの合計です。持久力温存の回避に必要な回復は必須に入れています。このレースで発動しないスキル：${p.dead.length}件（表示を省略）</p>
     </div>`)}
     <p class="foot">期待バ身＝獲得バ身×発動率（賢さ${st.stats.wit}で約${Math.round(p.rate*100)}%）。1人走行の近似計算です。コース補正ステータス（スピード×${p.courseMod.toFixed(2)}）・掛かり・下り坂加速・賢さの揺らぎは期待値で反映し、位置取り争い・リード確保の体力消費は設定の値で反映しています（ブロックは含みません）。全開スパートは${p.ctx.ft.on?"仮モデルで反映しています":"含みません"}。データ出典：${esc(D.meta.source)}（${esc((D.meta.fetchedAt||"").slice(0,10))}取得）、サポカのイベントの照合にGameTora、開催イベントの条件にgamebiz（Cygames発表の転載）とU-tools、シナリオの上限ステータスに神ゲー攻略。</p>
   </div>`;
