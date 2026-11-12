@@ -18,7 +18,7 @@
   --green:#7bc843; --green-d:#4f9a22; --green-dd:#3c7a17; --green-soft:#eef8e6;
   --pink:#f3729f; --pink-soft:#fde8f0;
   --gold1:#fff1b8; --gold2:#f7cf52; --gold-ink:#7a5600;
-  --evo1:#f1e6ff; --evo2:#e2ccff; --evo-b:#a77fd9;
+  --evo1:#ffe5e3; --evo2:#ffc9c4; --evo-b:#e5534b;
   --must:#f0544f; --rec:#4f9a22; --opt:#e89a1a; --none:#a9a29b;
   --c-spd:#3b9bf0; --c-sta:#f0603f; --c-pow:#f5a524; --c-gut:#f26aa0; --c-wit:#35b673;
   --e-speed:#f5a524; --e-accel:#f0544f; --e-heal:#35b6c8; --e-stat:#7bc843; --e-forward:#a77fd9; --e-other:#9aa0a6;
@@ -210,7 +210,7 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .sk.r-gold{background:linear-gradient(180deg,var(--gold1),#fde7a0);border-color:#efc75a;box-shadow:0 2px 0 #e0b440}
 .sk.r-evo{background:linear-gradient(180deg,var(--evo1),var(--evo2));border-color:var(--evo-b);box-shadow:0 2px 0 var(--evo-b)}
 .ulist li.l-gold{background:linear-gradient(90deg,var(--gold1),#fff7d6);border-radius:10px;box-shadow:inset 3px 0 0 #e0b440}
-.ulist li.l-evo{background:linear-gradient(90deg,var(--evo1),#f8f1ff);border-radius:10px;box-shadow:inset 3px 0 0 var(--evo-b)}
+.ulist li.l-evo{background:linear-gradient(90deg,var(--evo1),#fff4f3);border-radius:10px;box-shadow:inset 3px 0 0 var(--evo-b)}
 .ulist li.l-unique{background:linear-gradient(90deg,#fde8f2,#eef6ff);border-radius:10px;box-shadow:inset 3px 0 0 #f26aa0}
 .rtag{display:inline-block;font-size:10px;font-weight:800;border-radius:999px;padding:0 6px;margin-left:5px;vertical-align:1px}
 .rtag.gold{background:#f7cf52;color:#6b4a00}.rtag.evo{background:var(--evo-b);color:#fff}
@@ -727,6 +727,9 @@ async function computePlan(onProgress){
   // 進化スキル：元のスキルを取ったうえで、育成中に条件を満たすと進化する（育成ウマ娘ごと）
   const evoSkills=(ch.upgrades||[]).map(u=>SK[u.skillId]).filter(Boolean);
   pool.push(...evoSkills);
+  // シナリオの進化スキル：選んだシナリオのものだけ（元スキルを取ったうえで進化。1回の育成で2つまで）
+  const scEvo=((D.scenarioEvo||{})[st.scenario]||{list:[]}).list.filter(e=>SK[e.evo]&&e.base.some(id=>SK[id]));
+  pool.push(...scEvo.map(e=>SK[e.evo]).filter(k=>!pool.includes(k)));
   const live=[],dead=[];
   for(const s of pool){(UmaSim.planSkill(ctx,s,.5).length?live:dead).push(s)}
   // 回復は「積み上げ」で評価する。順番の目安として、デッキ（トレーニング・全イベント）・固有・覚醒で取れるものを先にする
@@ -830,10 +833,14 @@ function derive(p){
   const ownLabel=id=>{if(!ranks)return"育成ウマ娘の所持スキル";const r=ranks[id];return r===0||r==null?"初期スキル":`覚醒Lv${r}`};
   // 入手経路（ゲームの取得ルール）：固有／サポカのトレーニング／選んだイベント選択肢／覚醒／白因子（白スキルのみ。金は因子で継承できない）
   const evoMap=new Map((ch.upgrades||[]).map(u=>[u.skillId,u]));
+  const scEvoMap=new Map((((D.scenarioEvo||{})[st.scenario]||{list:[]}).list).map(e=>[e.evo,e]));
   const routeOf=s=>{
     if(uniq&&s.id===uniq.id)return{label:"固有スキル",kind:"own"};
     if(evoMap.has(s.id)){const u=evoMap.get(s.id),b=SK[u.baseId];const br=b?routeOf(b):null;
       return br?{label:`進化（元：${b.name}・覚醒Lv${u.rank}以上）`,kind:"own",evo:u,baseRoute:br}:null}
+    if(scEvoMap.has(s.id)){const e=scEvoMap.get(s.id);
+      for(const bid of e.base){const b=SK[bid];const br=b?routeOf(b):null;if(br&&br.kind==="own")return{label:`シナリオ進化（元：${b.name}）`,kind:"own",evo:{baseId:bid,rank:null,conds:[],scenario:true},baseRoute:br,scEvo:true}}
+      return null}
     if(fromDeck[s.id])return{label:"サポカ（トレーニング）："+[...new Set(fromDeck[s.id])].slice(0,2).join("／")+(fromDeck[s.id].length>2?" ほか":""),kind:"own"};
     if(fromEvent[s.id]){const o=fromEvent[s.id].slice().sort((a,b)=>a.pattern-b.pattern)[0];return{label:(o.card.type==="シナリオ"?"シナリオのイベント：":"サポカのイベント：")+evLabel(o),kind:"own",evLv:o.lv}}
     if(awaken.has(s.id))return{label:ownLabel(s.id),kind:"own"};
@@ -860,18 +867,31 @@ function derive(p){
   const groups=new Map();
   const grpKey=x=>{if(x.route&&x.route.evo){const b=SK[x.route.evo.baseId];return b?(b.groupId||b.id):x.s.id}return x.s.owner?x.s.id:(x.s.groupId||x.s.id)};
   for(const x of p.rows){const g=grpKey(x);(groups.get(g)||groups.set(g,[]).get(g)).push(x)}
-  const reps=[];
+  const reps=[],scCands=[];
   for(const list of groups.values()){
     for(const x of list){const evoB=x.route&&x.route.evo?SK[x.route.evo.baseId]:null;const chain=evoB?(evoB.owner?[evoB]:chainOf(evoB)):x.s.owner?[x.s]:chainOf(x.s);x.chain=chain;x.chainSp=chain.reduce((t,k)=>t+(k.sp||0),0);x.lower=chain.filter(k=>k.id!==x.s.id).map(k=>k.name)}
     // デッキ・固有・初期/覚醒・イベントで取れる段階が1つでもあれば、その系統は手持ちの経路で取る（上の段階を白因子で狙う扱いにはしない）
     const own=list.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
     const ok=own.length?own:list.filter(x=>x.route&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
-    if(ok.length)reps.push(ok[0]);
+    if(!ok.length)continue;
+    if(ok[0].route.scEvo){
+      // シナリオ進化の候補：進化しなかった場合の代わり（同じ系統でいちばん良い段階）との差を伸びとする
+      const alt=ok.find(x=>!x.route.scEvo)||null;
+      for(const x of list.filter(x=>x.route&&x.route.scEvo&&x.r.ok))scCands.push({x,alt,gain:x.expAdj-(alt?alt.expAdj:0)});
+    }
+    reps.push(ok[0]);
   }
+  // シナリオの進化スキルは1回の育成で2つまで：伸びが大きい2つだけ進化させ、残りは進化しない段階を代表にする
+  scCands.sort((a,b)=>b.gain-a.gain);
+  scCands.forEach((c,i)=>{c.chosen=i<2;if(!c.chosen){const k=reps.indexOf(c.x);if(k>=0){if(c.alt)reps[k]=c.alt;else reps.splice(k,1)}}});
   // 仮の段階（手持ちの判定用）。最終的な段階は summarize で、手持ちと合わせたときの値で付け直す
   setTH(Math.max(.1,...reps.filter(x=>!x.conserveNeed).map(x=>x.expAdj)));
   for(const rep of reps)rep.tier=rep.tierBase=rep.conserveNeed?"must":tierOf(rep.expAdj);
-  return{guide,reps};
+  // 元スキルを取れないシナリオ進化（参考表示用）
+  const rowOf=new Map(p.rows.map(x=>[x.s.id,x]));
+  const scMissing=[...scEvoMap.values()].filter(e=>SK[e.evo]&&!scCands.some(c=>c.x.s.id===e.evo)).map(e=>({e,x:rowOf.get(e.evo)})).filter(o=>o.x&&!o.x.route).map(o=>({name:SK[o.e.evo].name,base:o.e.baseName}));
+  const scDead=[...scEvoMap.values()].filter(e=>SK[e.evo]&&!rowOf.has(e.evo)).map(e=>SK[e.evo].name);
+  return{guide,reps,scEvo:{cands:scCands,missing:scMissing,dead:scDead,url:((D.scenarioEvo||{})[st.scenario]||{}).url}};
 }
 
 // ===== 因子周回の編成：因子化したい白スキルのヒントを持つサポカを、優先度の重みで貪欲に6枚選ぶ =====
@@ -1076,6 +1096,14 @@ function staRecheck(p,d,m,L,noAdd){
 }
 // スキル判定の段階をおすすめ構成と連動させる：構成に入るスキル＝推奨以上、そのうち積み上げの伸びが大きい上位3分の1＝必須
 // （温存回避に必要な回復は必須）。構成に入らないものは「そのほか（参考）」
+function scEvoHtml(se){
+  const c=se.cands;
+  return `<p class="hint">このシナリオでは、元のスキルを取ったうえで条件を満たすと、シナリオ専用の進化スキルに進化できます（1回の育成で2つまで）。元のスキルが取れる候補を、進化しなかった場合からの伸び（期待バ身）が大きい順に並べ、上位2つをおすすめにしています。進化条件は満たせる前提です。おすすめの2つは、スキル判定・おすすめ構成にも進化後の効果で入っています。</p>
+  ${c.length?`<ul class="ulist">${c.map(o=>`<li class="${o.chosen?"l-evo":""}"><span><b>${esc(o.x.s.name)}</b>${o.chosen?'<span class="rtag evo">おすすめ</span>':""}<small style="display:block;color:var(--muted)">元：${esc(SK[o.x.route.evo.baseId]?.name||"")}（${esc(o.x.route.baseRoute.label)}）${o.alt?`・進化しない場合は${esc(o.alt.s.name)} ${o.alt.expAdj.toFixed(2)}バ身`:""}</small></span><span style="white-space:nowrap">+${o.gain.toFixed(2)}バ身</span></li>`).join("")}</ul>`:'<p class="hint">元のスキルを取れる候補がありません。</p>'}
+  ${se.missing.length?`<p class="hint">元のスキルが手持ちの経路（デッキ・固有・初期/覚醒・イベント）で取れないもの：${se.missing.map(e=>`${esc(e.name)}（元：${esc(e.base)}）`).join("・")}</p>`:""}
+  ${se.dead&&se.dead.length?`<p class="hint">このレースの条件では発動しないもの：${se.dead.map(esc).join("・")}</p>`:""}
+  <p class="hint">出典：<a href="${esc(se.url||"")}" target="_blank" rel="noopener">ゲームエイト</a></p>`;
+}
 function tierByLoadout(d,L){
   const inL=new Map(L.picked.map(k=>[k.x,k]));
   const ranked=L.picked.filter(k=>!k.forced).sort((a,b)=>(b.gain||0)-(a.gain||0));
@@ -1379,6 +1407,7 @@ function renderSheet(p){
       <div class="kpi"><span class="k">白因子で拾うスキル</span><span class="v">${m.fac.top.length}<small> 超優先</small> ${m.fac.high.length}<small> 優先</small></span><span class="d">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントで取れない白スキルのうち、効果の大きいもの</span></div>
     </div>`)}
     ${sec("loadout","おすすめのスキル構成",loadHtml)}
+    ${d.scEvo&&(d.scEvo.cands.length||d.scEvo.missing.length)?sec("scevo","シナリオの進化スキル（2つまで）",scEvoHtml(d.scEvo)):""}
     ${sec("connect","終盤接続するスキル",connHtml)}
     ${sec("factors","因子化するスキル",facHtml)}
     ${sec("farm","因子周回のデッキ案",farmHtml,false)}
