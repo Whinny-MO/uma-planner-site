@@ -18,6 +18,7 @@
   --green:#7bc843; --green-d:#4f9a22; --green-dd:#3c7a17; --green-soft:#eef8e6;
   --pink:#f3729f; --pink-soft:#fde8f0;
   --gold1:#fff1b8; --gold2:#f7cf52; --gold-ink:#7a5600;
+  --evo1:#f1e6ff; --evo2:#e2ccff; --evo-b:#a77fd9;
   --must:#f0544f; --rec:#4f9a22; --opt:#e89a1a; --none:#a9a29b;
   --c-spd:#3b9bf0; --c-sta:#f0603f; --c-pow:#f5a524; --c-gut:#f26aa0; --c-wit:#35b673;
   --e-speed:#f5a524; --e-accel:#f0544f; --e-heal:#35b6c8; --e-stat:#7bc843; --e-forward:#a77fd9; --e-other:#9aa0a6;
@@ -190,6 +191,7 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .lout li small{display:block;color:var(--muted);font-size:11.5px}
 .ulist li{display:flex;justify-content:space-between;gap:8px;background:var(--sunk);border-radius:8px;padding:4px 8px;font-size:13px}
 .ulist li b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.lout li>span:last-child{white-space:nowrap}
 .ilist{margin-top:6px}
 .ilist li{padding:0;background:none}
 .ipick{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font:inherit;font-size:13px;background:var(--sunk);border:2px solid transparent;border-radius:10px;padding:6px 8px;cursor:pointer;color:var(--ink)}
@@ -206,6 +208,12 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .tier-h .n{font-size:12px;color:var(--muted)}
 .sk{display:grid;grid-template-columns:34px 1fr auto;gap:2px 10px;align-items:center;padding:7px 10px 7px 7px;border-radius:12px;background:#fff;border:2px solid var(--line);box-shadow:0 2px 0 var(--line)}
 .sk.r-gold{background:linear-gradient(180deg,var(--gold1),#fde7a0);border-color:#efc75a;box-shadow:0 2px 0 #e0b440}
+.sk.r-evo{background:linear-gradient(180deg,var(--evo1),var(--evo2));border-color:var(--evo-b);box-shadow:0 2px 0 var(--evo-b)}
+.ulist li.l-gold{background:linear-gradient(90deg,var(--gold1),#fff7d6);border-radius:10px;box-shadow:inset 3px 0 0 #e0b440}
+.ulist li.l-evo{background:linear-gradient(90deg,var(--evo1),#f8f1ff);border-radius:10px;box-shadow:inset 3px 0 0 var(--evo-b)}
+.ulist li.l-unique{background:linear-gradient(90deg,#fde8f2,#eef6ff);border-radius:10px;box-shadow:inset 3px 0 0 #f26aa0}
+.rtag{display:inline-block;font-size:10px;font-weight:800;border-radius:999px;padding:0 6px;margin-left:5px;vertical-align:1px}
+.rtag.gold{background:#f7cf52;color:#6b4a00}.rtag.evo{background:var(--evo-b);color:#fff}
 .sk.r-unique{background:linear-gradient(#fff,#fff) padding-box,linear-gradient(90deg,#f26aa0,#a77fd9,#3b9bf0,#35b673) border-box;border-color:transparent}
 .ico{grid-row:1/span 2;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;box-shadow:inset 0 -3px 0 rgba(0,0,0,.15)}
 .ico svg{width:20px;height:20px}
@@ -681,6 +689,8 @@ function pickSupport(i,arr,changed){
 const kanaKey=t=>String(t||"").replace(/[\u30a1-\u30f6]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/ー/g,"ー").toLowerCase();
 const READ_EXTRA={"吾妻":"あづま","駿川たづな":"はやかわたづな","保科健子":"ほしなきよこ","秋川理事長":"あきかわりじちょう","都留岐涼花":"つるぎりょうか","佐岳メイ":"さたけめい","安心沢刺々美":"あんしんざわささみ","樫本理子":"かしもとりこ","桐生院葵":"きりゅういんあおい",
   "伝説の体現者":"でんせつのたいげんしゃ","刻み続ける者たち":"きざみつづけるものたち","祖にして導く者":"そにしてみちびくもの","玉座に集いし者たち":"ぎょくざにつどいしものたち"};
+// 表示用のレアリティ：進化スキル（rarityRaw 6）は「evo」として、金・固有と色を分ける
+const rcls=s=>s.rarityRaw===6?"evo":s.rarity;
 const isLottery=s=>(s.ep||[]).some(q=>(q.conditions||[]).some(g=>["random_lot","random_lot_shared"].some(k=>(g[k]||[]).some(c=>Number(c.value)<50))));
 const mOf=(s,r)=>(S.randAccelSafe&&s.effect==="accel"&&r.random&&r.q25!=null)?r.q25:r.mean;
 // スキル判定の段階：プランごとに、入手できるスキルでいちばん伸びるもの（TH.best）を基準に、
@@ -1149,7 +1159,7 @@ function skRow(x){
   const route=x.route||{label:"デッキ外",kind:"no"};
   const cs=x.conn?(x.conn.rate>=0.99?" conn-sure":" conn-maybe"):"";
   const cl=x.conn?(x.conn.rate>=0.99?"終盤接続 確定":`接続 約${Math.round(x.conn.rate*100)}%`):"";
-  return `<div class="sk r-${s.rarity}${cs}"><span class="ico i-${s.effect}">${ICONS[s.effect]||ICONS.other}</span>
+  return `<div class="sk r-${rcls(s)}${cs}"><span class="ico i-${s.effect}">${ICONS[s.effect]||ICONS.other}</span>
     <div class="nm"${cl?` data-conn="${cl}"`:""}>${esc(s.name)}</div><div class="sc">${(x.expAdj??x.exp).toFixed(2)}<small>バ身</small></div>
     <div class="ds"><span>${meta.map(esc).join("・")}</span><span class="src src-${route.kind}">${esc(route.label)}</span></div></div>`}
 
@@ -1312,7 +1322,7 @@ function renderSheet(p){
   const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
     <div class="kpis"><div class="kpi"><span class="k">使うSP</span><span class="v">${L.used}<small> / ${L.budget}pt</small></span><span class="d">${L.inhN?`継承固有${L.inhN}個（1個${L.inhCost}pt）を含む。`:""}残り${Math.max(0,L.budget-L.used)}pt</span></div>
     <div class="kpi"><span class="k">構成全体の期待バ身</span><span class="v">${L.total.toFixed(2)}<small>バ身</small></span><span class="d">選んだ継承固有・温存回避の回復の分は含まない</span></div></div>
-    <ol class="ulist lout">${L.picked.map(k=>`<li><span><b>${esc(k.x.s.name)}</b><small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
+    <ol class="ulist lout">${L.picked.map(k=>`<li class="l-${rcls(k.x.s)}"><span><b>${esc(k.x.s.name)}</b>${rcls(k.x.s)==="gold"?'<span class="rtag gold">金</span>':rcls(k.x.s)==="evo"?'<span class="rtag evo">進化</span>':""}<small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
   lastExport={p,d,m,L,connList};lastM=m;
   const w=m.withOwn,ok=m.deficit<=0,okNo=m.deficitNoHeal<=0;
   const stState=okNo?'<span class="state st-ok">回復なしで起きない</span>':ok?'<span class="state st-warn">回復スキルで回避できる</span>':'<span class="state st-ng">起きる</span>';
