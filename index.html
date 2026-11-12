@@ -40,7 +40,7 @@ h1{font-weight:800;font-size:21px;line-height:1.2;margin:0;text-shadow:0 2px 0 v
 nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;padding-block:10px;background:linear-gradient(var(--bg) 70%,transparent)}
 .tabtrack{display:flex;gap:4px;background:#fff;border-radius:999px;padding:4px;box-shadow:0 2px 0 var(--line);overflow-x:auto;scrollbar-width:none}
 .tabtrack::-webkit-scrollbar{display:none}
-.tab{flex:1 0 auto;border:0;background:transparent;font:inherit;font-weight:700;font-size:13.5px;color:var(--muted);border-radius:999px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+.tab{flex:1 0 auto;border:0;background:transparent;font:inherit;font-weight:700;font-size:13.5px;color:var(--muted);border-radius:999px;padding:7px 10px;cursor:pointer;white-space:nowrap}
 .tab .no{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--sunk);font-size:11px;margin-right:4px;vertical-align:1px}
 .tab[aria-current="true"]{background:var(--green);color:#fff;box-shadow:inset 0 -3px 0 var(--green-d)}
 .tab[aria-current="true"] .no{background:rgba(255,255,255,.3)}
@@ -153,6 +153,17 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .sh-b{padding:14px 16px 16px;display:grid;gap:16px}
 .ribbon{display:inline-block;justify-self:start;background:var(--pink);color:#fff;font-weight:800;font-size:13.5px;padding:3px 16px 3px 12px;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 50%,100% 100%,0 100%);border-radius:6px 0 0 6px}
 .kpis{display:grid;grid-template-columns:1fr;gap:10px}
+.vslots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.vslots button{font:inherit;text-align:left;border:2px solid var(--line);background:#fff;border-radius:12px;padding:6px 8px;cursor:pointer;min-width:0;display:grid;gap:1px}
+.vslots button[aria-pressed="true"]{border-color:var(--pink);box-shadow:inset 0 0 0 1px var(--pink)}
+.vslots button .t{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vslots button .n{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vverdict{font-size:16px;font-weight:800;line-height:1.5}
+.vres .ulist li>span:last-child{white-space:nowrap}
+.vdiff{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:4px 10px;font-size:13px;align-items:baseline}
+.vdiff .h{font-size:11px;color:var(--muted);font-weight:700}
+.vdiff .r{text-align:right;font-variant-numeric:tabular-nums}
+.vtag{display:inline-block;font-size:10.5px;font-weight:800;padding:0 6px;border-radius:999px;color:#fff;margin-left:4px;vertical-align:1px}
 @media (min-width:560px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .kpi{border-radius:14px;background:var(--sunk);padding:10px 12px;display:grid;gap:4px;border:2px solid var(--line);align-content:start}
 .kpi .k{font-size:12px;font-weight:800;color:var(--muted)}
@@ -245,7 +256,8 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
     <button class="tab" data-step="uma"><span class="no">2</span>ウマ娘</button>
     <button class="tab" data-step="deck"><span class="no">3</span>デッキ</button>
     <button class="tab" data-step="plan"><span class="no">4</span>プラン</button>
-    <button class="tab" data-step="settings"><span class="no">5</span>設定</button>
+    <button class="tab" data-step="verify"><span class="no">5</span>サポカ検証</button>
+    <button class="tab" data-step="settings"><span class="no">6</span>設定</button>
   </div></nav>
 
   <section class="panel" id="p-race">
@@ -347,6 +359,16 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
       <label class="f">共有コードから開く<textarea id="shareIn" rows="3" placeholder="UMAPLAN1:… を貼り付け" style="width:100%;font:inherit;font-size:12px;border:2px solid var(--line);border-radius:12px;padding:8px;background:var(--sunk);color:var(--ink)"></textarea></label>
       <div class="btnrow"><button class="btn grow" id="btnShareOpen">このコードのプランを開く</button></div>
     </div></div>
+  </section>
+
+  <section class="panel" id="p-verify" hidden>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>サポカ検証</h2></div><div class="card-b">
+      <p class="hint">今の編成の1枚を別のカードに差し替えたとき、<b>取れるスキルの面だけ</b>でどちらが良いかを比べます。レース条件・ウマ娘・SP・継承固有はプランと同じです。トレーニング性能（ステータスの伸び）は比べていません。</p>
+      <div><p class="lbl">差し替える枠</p><div class="vslots" id="vSlots"></div></div>
+      <div><p class="lbl">候補のカード</p><div id="vCand"></div></div>
+      <div class="btnrow"><button class="btn primary grow" type="button" id="vRun">比較する</button></div>
+    </div></div>
+    <div id="vOut"></div>
   </section>
 
   <section class="panel" id="p-settings" hidden>
@@ -473,7 +495,8 @@ function apts(){const ch=chara(),c=course(),cat=distCat(c.dist);
 let planDirty=true, lastPlan=null;
 function setStep(name){
   document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-current",b.dataset.step===name?"true":"false"));
-  ["race","uma","deck","plan","settings"].forEach(n=>{$("#p-"+n).hidden=n!==name});
+  ["race","uma","deck","plan","verify","settings"].forEach(n=>{$("#p-"+n).hidden=n!==name});
+  if(name==="verify"&&D)renderVerify();
   if(name==="plan"&&D)computeAndRender();
   if(name==="settings")renderSettings();
   window.scrollTo({top:0});
@@ -983,7 +1006,7 @@ function staRecheck(p,d,m,L,noAdd){
   if(m.withOwn.conserveAt==null){m.dbTol=0;for(let k=1;k<=12;k++){if(UmaSim.run(p.ctxC,withC.concat(debuffPlans(ctx,k,0))).conserveAt!=null)break;m.dbTol=k}}
   return added;
 }
-function buildLoadout(p,d,m){
+function buildLoadout(p,d,m,ownOnly){
   const ctx=p.ctx,budget=st.spBudget??3000;
   const isPassive=s=>(s.ep||[]).length>0&&s.ep.every(q=>q.baseTime<0);
   const valOf=(x,plans,baseRun)=>{const r=UmaSim.skillBashin(ctx,x.s,{base:baseRun,basePlans:plans,samples:Math.min(6,S.samples)});
@@ -995,7 +1018,7 @@ function buildLoadout(p,d,m){
   // 持久力温存の回避に必要な回復は先に入れる
   for(const x of d.reps.filter(x=>x.conserveNeed)){const c=skillCost(x)??0;plans=plans.concat(UmaSim.planSkill(ctx,x.s,.5));used+=c;picked.push({x,cost:c,gain:null,forced:true})}
   let baseRun=UmaSim.run(ctx,plans),ver=0;
-  const q=d.reps.filter(x=>x.r.ok&&x.route&&!x.conserveNeed&&x.exp>0.02&&!(S.lotteryOut&&isLottery(x.s))).map(x=>({x,cost:skillCost(x)??0,ub:x.exp,ver:-1}));
+  const q=d.reps.filter(x=>x.r.ok&&x.route&&(!ownOnly||x.route.kind==="own")&&!x.conserveNeed&&x.exp>0.02&&!(S.lotteryOut&&isLottery(x.s))).map(x=>({x,cost:skillCost(x)??0,ub:x.exp,ver:-1}));
   const score=e=>e.cost>0?e.ub/e.cost:e.ub*1e6;
   while(q.length&&picked.length<60){
     q.sort((a,b)=>score(b)-score(a));
@@ -1055,6 +1078,110 @@ function skRow(x){
   return `<div class="sk r-${s.rarity}${cs}"><span class="ico i-${s.effect}">${ICONS[s.effect]||ICONS.other}</span>
     <div class="nm"${cl?` data-conn="${cl}"`:""}>${esc(s.name)}</div><div class="sc">${(x.expAdj??x.exp).toFixed(2)}<small>バ身</small></div>
     <div class="ds"><span>${meta.map(esc).join("・")}</span><span class="src src-${route.kind}">${esc(route.label)}</span></div></div>`}
+
+/* ---------- 5. サポカ検証 ---------- */
+function renderVerify(){
+  st.verify=st.verify||{slot:0,cand:null};
+  const v=st.verify;
+  $("#vSlots").innerHTML=st.deck.map((id,i)=>{const cd=SP[id];return`<button type="button" data-vs="${i}" aria-pressed="${v.slot===i}"><span class="t">枠${i+1}${i===5?"（フレンド）":""}${cd?"・"+esc(cd.rarity+" "+cd.type):""}</span><span class="n">${cd?esc(cd.name):"（空き）"}</span></button>`}).join("");
+  $("#vSlots").querySelectorAll("[data-vs]").forEach(b=>b.addEventListener("click",()=>{v.slot=+b.dataset.vs;persist();renderVerify()}));
+  const cd=SP[v.cand];
+  $("#vCand").innerHTML=`<button class="pick" type="button" id="vPick">${cd?`<span class="type" style="background:${TYPE_COLOR[cd.type]||"#999"};color:#fff;font-size:11px;font-weight:800;padding:1px 6px;border-radius:999px">${esc(cd.rarity)} ${esc(cd.type)}</span><span><span class="t">${esc(cd.title)}</span><span class="n">${esc(cd.name)}</span></span>`:`<span class="n" style="color:var(--muted)">カードを選ぶ</span>`}<span class="chg">${cd?"変更 ›":"選ぶ ›"}</span></button>`;
+  $("#vPick").addEventListener("click",()=>{
+    const items=D.supports.filter(s=>s.rarity!=="R").map(s=>({s,search:`${s.name}${s.title}`}));
+    openPicker({title:"候補のカード",items,
+      filters:{opts:["すべて","スピード","スタミナ","パワー","根性","賢さ","友人","グループ"],test:(it,f)=>it.s.type===f},
+      render:it=>`<span class="type" style="background:${TYPE_COLOR[it.s.type]||"#999"}">${esc(it.s.rarity)}</span><span><span class="t">${esc(it.s.title)}</span><span class="n">${esc(it.s.name)}</span></span>`,
+      onPick:it=>{v.cand=it.s.id;persist();renderVerify()}});
+  });
+}
+// 編成を差し替えて、入手経路の判定〜おすすめ構成までをやり直す（重い計算の結果はプランのものを使い回す。行は複製して、プランの表示に影響させない）
+function evalDeck(p,cards){
+  const q=Object.assign({},p,{deckCards:cards,rows:p.rows.map(x=>({...x})),inhAll:p.inhAll.map(u=>({...u}))});
+  const d=derive(q);let m=summarize(q,d);let L=buildLoadout(q,d,m);
+  if(staRecheck(q,d,m,L)){m=summarize(q,d);L=buildLoadout(q,d,m);staRecheck(q,d,m,L,true)}
+  const Lo=buildLoadout(q,d,m,true);
+  return{d,m,L,Lo,th:{...TH}};
+}
+async function runVerify(){
+  const v=st.verify||{};const out=$("#vOut");
+  const cur=SP[st.deck[v.slot]],cand=SP[v.cand];
+  if(!cand){toast("候補のカードを選んでください");return}
+  if(st.deck.includes(v.cand)){toast("そのカードはすでに編成に入っています");return}
+  if(computing)return;
+  computing=true;
+  out.innerHTML=`<div class="progress"><span>計算中…</span><div class="bar"><i id="vbar"></i></div></div>`;
+  try{
+    if(planDirty||!lastPlan){lastPlan=await computePlan(f=>{const b=$("#vbar");if(b)b.style.width=Math.round(f*90)+"%"});planDirty=false}
+    await new Promise(r=>setTimeout(r));
+    const p=lastPlan;
+    const cardsA=st.deck.map(id=>SP[id]).filter(Boolean);
+    const deckB=st.deck.slice();deckB[v.slot]=v.cand;
+    const cardsB=deckB.map(id=>SP[id]).filter(Boolean);
+    const A=evalDeck(p,cardsA),B=evalDeck(p,cardsB);
+    out.innerHTML=`<div class="vres">${verifyHtml(A,B,cur,cand,v.slot)}</div>`;
+  }catch(e){console.error(e);out.innerHTML=`<div class="progress" style="color:var(--must)">計算中にエラーが起きました。</div>`}
+  finally{computing=false}
+}
+function verifyHtml(A,B,cur,cand,slot){
+  const gk=x=>x.s.owner?x.s.id:(x.s.groupId||x.s.id);
+  const val=x=>x.tierV??x.expAdj??x.exp;
+  const own=E=>new Map(E.d.reps.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok).map(x=>[gk(x),x]));
+  const all=E=>new Map(E.d.reps.map(x=>[gk(x),x]));
+  const oA=own(A),oB=own(B),aA=all(A),aB=all(B);
+  const lost=[],gain=[],down=[],up=[];
+  for(const [k,x] of oA){
+    const y=oB.get(k);
+    if(!y){const b=aB.get(k);lost.push({x,b:b&&b.route&&b.route.kind==="inh"&&b.r.ok?b:null});continue}
+    if(y.s.id!==x.s.id&&val(x)-val(y)>0.02)down.push({x,y});
+  }
+  for(const [k,y] of oB){
+    const x=oA.get(k);
+    if(!x){gain.push({y});continue}
+    if(y.s.id!==x.s.id&&val(y)-val(x)>0.02)up.push({x,y});
+  }
+  const sig=o=>val(o)>=0.1;
+  const lostS=lost.filter(o=>sig(o.x)).sort((a,b)=>val(b.x)-val(a.x)),gainS=gain.filter(o=>sig(o.y)).sort((a,b)=>val(b.y)-val(a.y));
+  const dOwn=B.Lo.total-A.Lo.total,dAll=B.L.total-A.L.total;
+  const nm=cd=>cd?`${esc(cd.title)}${esc(cd.name)}`:"空き枠";
+  const verdict=Math.abs(dOwn)<0.1?`取れるスキルの面では、ほぼ同じです（差 ${dOwn>=0?"+":""}${dOwn.toFixed(2)}バ身）`
+    :dOwn>0?`<b>${nm(cand)}</b>に替えたほうが、因子なしで取れるスキルの構成が <b>+${dOwn.toFixed(2)}バ身</b> 良くなります`
+    :`今の<b>${nm(cur)}</b>のままのほうが、因子なしで取れるスキルの構成が <b>${(-dOwn).toFixed(2)}バ身</b> 良いです`;
+  const tag=(t,c)=>`<span class="vtag" style="background:${c}">${t}</span>`;
+  const tierTag=x=>x.tier==="must"?tag("必須","var(--must)"):x.tier==="rec"?tag("推奨","var(--rec)"):"";
+  const gold=s=>s.rarity==="gold"?tag("金","#c9a227"):"";
+  const row=(name,a,b)=>`<span>${name}</span><span class="r">${a}</span><span class="r">${b}</span>`;
+  const facN=E=>E.m.fac.top.length+E.m.fac.high.length;
+  const healInh=E=>E.d.reps.filter(x=>x.conserveNeed&&x.route&&x.route.kind==="inh").length;
+  const li=(o,x,extra)=>`<li><span><b>${esc(x.s.name)}</b>${gold(x.s)}${tierTag(x)}<small style="display:block;color:var(--muted)">${extra}</small></span><span>${val(x).toFixed(2)}バ身</span></li>`;
+  const lostHtml=lostS.length?`<ul class="ulist">${lostS.map(o=>li(o,o.x,o.b?(o.b.s.id===o.x.s.id?"白因子で補える（追加で因子化が必要）":`この金は取れなくなる。下位の${esc(o.b.s.name)}なら白因子で補える（追加で因子化が必要・${val(o.b).toFixed(2)}バ身）`):o.x.s.rarity==="gold"?"取れなくなる（金は因子で継承できない）":"取れなくなる")).join("")}</ul>`:'<p class="hint">なし</p>';
+  const gainHtml=gainS.length?`<ul class="ulist">${gainS.map(o=>li(o,o.y,esc(o.y.route.label))).join("")}</ul>`:'<p class="hint">なし</p>';
+  const chg=(list,dir)=>list.length?`<ul class="ulist">${list.map(o=>`<li><span><b>${esc(o.x.s.name)} → ${esc(o.y.s.name)}</b><small style="display:block;color:var(--muted)">${dir}</small></span><span>${val(o.x).toFixed(2)} → ${val(o.y).toFixed(2)}</span></li>`).join("")}</ul>`:"";
+  const accTxt=E=>E.m.accel.ok?"足りる":"足りない";
+  const staTxt=E=>E.m.deficit<=0?(E.m.deficitNoHeal<=0?"起きない":"回復で回避"):"起きる";
+  return `<div class="card"><div class="card-h"><span class="mk"></span><h2>比較の結果</h2></div><div class="card-b">
+    <p class="vverdict">${verdict}</p>
+    <p class="hint">枠${slot+1}：${nm(cur)} → ${nm(cand)}。「因子なしで取れる構成」は、デッキ・固有・初期/覚醒スキル・シナリオ・イベントで取れるスキルだけを、使えるSP ${A.Lo.budget}ptの中で選んだ構成の期待バ身です。</p>
+    <div class="vdiff">
+      <span class="h">項目</span><span class="h r">今のまま</span><span class="h r">差し替え後</span>
+      ${row("因子なしで取れる構成",A.Lo.total.toFixed(2)+"バ身",B.Lo.total.toFixed(2)+"バ身")}
+      ${row("白因子も使った構成",A.L.total.toFixed(2)+"バ身",B.L.total.toFixed(2)+"バ身")}
+      ${row("因子化したい白スキル（超優先＋優先）",facN(A)+"個",facN(B)+"個")}
+      ${row("温存回避で因子化が必要な回復",healInh(A)+"個",healInh(B)+"個")}
+      ${row("持久力温存",staTxt(A),staTxt(B))}
+      ${row("終盤の加速",accTxt(A),accTxt(B))}
+    </div>
+    <p class="hint">白因子も使った構成の差：${dAll>=0?"+":""}${dAll.toFixed(2)}バ身（取れなくなったスキルを白因子で補えた場合）</p>
+  </div></div>
+  <div class="card"><div class="card-h"><span class="mk"></span><h2>取れなくなるスキル</h2></div><div class="card-b">
+    <p class="hint">今のカードでしか取れないスキルです（数字は期待バ身。0.1バ身未満は省略）。</p>${lostHtml}${chg(down,"取れる段階が下がる")}
+  </div></div>
+  <div class="card"><div class="card-h"><span class="mk"></span><h2>新しく取れるスキル</h2></div><div class="card-b">
+    <p class="hint">候補のカードで取れるようになるスキルです（数字は期待バ身。0.1バ身未満は省略）。</p>${gainHtml}${chg(up,"取れる段階が上がる")}
+  </div></div>`;
+}
+document.getElementById("vRun").addEventListener("click",runVerify);
+window.__verify={evalDeck,plan:()=>lastPlan,deck:()=>st.deck.map(id=>SP[id]).filter(Boolean)};
 
 let computing=false;
 async function computeAndRender(){
