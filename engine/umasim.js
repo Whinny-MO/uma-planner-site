@@ -417,6 +417,7 @@
           const v = e.value / 10000;
           if (e.target === 1) st.spd += v; else if (e.target === 2) st.sta += v; else if (e.target === 3) st.pow += v;
           else if (e.target === 4) st.gut += v; else if (e.target === 5) st.wit += v;
+          else if (e.target === 32) { st.spd += v; st.sta += v; st.pow += v; st.gut += v; st.wit += v; } // 全ステータス
         }
       } else timed.push({ ...pl, fired: false });
     }
