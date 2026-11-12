@@ -185,6 +185,8 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .factor{display:grid;gap:8px}
 .frow{display:grid;grid-template-columns:76px 1fr;gap:10px;align-items:start;font-size:14px}
 .frow > span:last-child{min-width:0}
+.frow.stack{grid-template-columns:minmax(0,1fr);gap:6px}
+.frow.stack .fpill{justify-self:start;padding:2px 14px}
 .fpill{font-size:12px;font-weight:800;color:#fff;text-align:center;border-radius:999px;padding:2px 0}
 .fp-blue{background:#3b9bf0}.fp-red{background:#f0544f}.fp-white{background:#fff;color:var(--ink);border:2px solid var(--line);padding:0}.fp-uniq{background:linear-gradient(90deg,#f26aa0,#a77fd9,#3b9bf0)}
 .ulist{display:grid;gap:4px;margin:0;padding:0;list-style:none}
@@ -194,7 +196,7 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .lout li>span:last-child{white-space:nowrap}
 .ilist{margin-top:6px}
 .ilist li{padding:0;background:none}
-.ipick{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font:inherit;font-size:13px;background:var(--sunk);border:2px solid transparent;border-radius:10px;padding:6px 8px;cursor:pointer;color:var(--ink)}
+.ipick{box-sizing:border-box;min-width:0;display:flex;align-items:center;gap:8px;width:100%;text-align:left;font:inherit;font-size:13px;background:var(--sunk);border:2px solid transparent;border-radius:10px;padding:6px 8px;cursor:pointer;color:var(--ink)}
 .ipick .tx{flex:1;min-width:0;font-weight:800;line-height:1.35}
 .ipick small{display:block;font-weight:500;color:var(--muted);font-size:11px}
 .ipick b{font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -248,7 +250,7 @@ details.sub>.tier{margin-top:6px}
 .gopt{display:grid;gap:2px;background:var(--sunk);border-radius:8px;padding:6px 8px;font-size:12.5px;border:2px solid transparent}
 .gopt.best{border-color:var(--green);background:var(--green-soft)}
 .gopt .gt{font-weight:800;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.gopt .rec,.ipick .rec{background:var(--green);color:#fff;border-radius:999px;font-size:11px;padding:0 8px;margin-left:6px;font-weight:800}
+.gopt .rec,.ipick .rec{white-space:nowrap;background:var(--green);color:#fff;border-radius:999px;font-size:11px;padding:0 8px;margin-left:6px;font-weight:800}
 .gopt .selp{background:var(--pink);color:#fff;border-radius:999px;font-size:11px;padding:0 8px}
 button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:100%}
 .ftier small{display:block;font-size:10px;font-weight:700;opacity:.9}
@@ -1391,7 +1393,7 @@ function renderSheet(p){
   const stat=[["spd","スピード"],["sta","スタミナ"],["pow","パワー"],["gut","根性"],["wit","賢さ"]];
   const full=st.inherit.length>=6;
   const inhBtn=u=>{const on=st.inherit.includes(u.s.id),rec=m.recIds.includes(u.s.id);
-    return `<li><button type="button" class="ipick${on?" on":""}" data-inh="${esc(u.s.id)}" aria-pressed="${on}"${!on&&full?" disabled":""}><span class="ck" aria-hidden="true">${on?"✓":""}</span><span class="tx">${esc(u.s.name)}${u.evo?'<span class="rec" style="background:#a77fd9">継承進化</span>':""}${rec?'<span class="rec">おすすめ</span>':""}<small>${esc(u.x.title)} ${esc(u.x.name)}・${esc(EFFECT_JA[u.s.effect]||"")}</small></span><b>${(u.mexp??u.exp).toFixed(2)}バ身</b></button></li>`};
+    return `<li><button type="button" class="ipick${on?" on":""}" data-inh="${esc(u.s.id)}" aria-pressed="${on}"${!on&&full?" disabled":""}><span class="ck" aria-hidden="true">${on?"✓":""}</span><span class="tx">${esc(u.s.name)}${u.evo?'<span class="rec" style="background:var(--evo-b)">継承進化</span>':""}${rec?'<span class="rec">おすすめ</span>':""}<small>${esc(u.x.title)} ${esc(u.x.name)}・${esc(EFFECT_JA[u.s.effect]||"")}</small></span><b>${(u.mexp??u.exp).toFixed(2)}バ身</b></button></li>`};
   const inhList=m.cands.map(inhBtn).join("");
   const ftb=p.ctx.ft.on?UmaSim.run(p.ctx,p.ownHealPlans):null;
   const spdNote=p.ctx.ft.on
@@ -1429,7 +1431,7 @@ function renderSheet(p){
       <div class="frow"><span class="fpill fp-blue">青因子</span><span>${esc(m.blue)}</span></div>
       <div class="frow"><span class="fpill fp-red">赤因子</span><span>${m.red.length?m.red.map(esc).join("、"):"適性はすべてA以上。S狙いは任意"}</span></div>
       <div class="frow"><span class="fpill fp-white">白因子</span><span>「因子化するスキル」を参照</span></div>
-      <div class="frow"><span class="fpill fp-uniq">継承固有</span><span><span class="hint">親・祖父母に使う最大6件を選んでください（選択中 ${st.inherit.length}/6）。選んだ回復・加速はスタミナと加速の判定に入ります。数字は、手持ちのスキル（推奨以上）と合わせて走らせたときに増える分で、おすすめは効果が重ならないように1件ずつ積み上げて選んでいます。</span>
+      <div class="frow stack"><span class="fpill fp-uniq">継承固有</span><span><span class="hint">親・祖父母に使う最大6件を選んでください（選択中 ${st.inherit.length}/6）。選んだ回復・加速はスタミナと加速の判定に入ります。数字は、手持ちのスキル（推奨以上）と合わせて走らせたときに増える分で、おすすめは効果が重ならないように1件ずつ積み上げて選んでいます。</span>
         <span class="btnrow" style="margin:6px 0"><button type="button" class="btn sm" id="inhRec">おすすめ6件を選ぶ</button><button type="button" class="btn sm" id="inhAny">ほかのウマ娘から選ぶ</button>${st.inherit.length?'<button type="button" class="btn sm" id="inhClear">選択を外す</button>':""}</span>
         ${m.cands.length?`<ul class="ulist ilist">${inhList}</ul>`:"有効な候補なし"}</span></div>
     </div>`)}
