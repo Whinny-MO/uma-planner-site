@@ -858,6 +858,14 @@ function summarize(p,d){
       x.marg=r.ok?mOf(x.s,r)*(isPas(x.s)?1:p.rate)*(x.field?.5:1)*(r.folded?1:(r.prob??1)):0;
       x.tier=tierOf(Math.min(x.expAdj,x.marg));
     }
+    // 加速の過不足：白因子の加速をもう1個足したときの伸びと、加速以外で因子化できるいちばん良いスキルの伸びを比べる（どちらも手持ちと合わせたときの増える分）。
+    // 加速のほうが小さければ、その枠は加速以外に使ったほうが得なので「足りる」
+    const elig=x=>x.route&&x.route.kind==="inh"&&x.r.ok&&x.marg!=null&&x.s.effect!=="heal"&&!(S.passSpdOnly&&x.statPassive)&&!(S.lotteryOut&&isLottery(x.s));
+    const accC=d.reps.filter(x=>elig(x)&&lateAccel(x)).sort((a,b)=>b.marg-a.marg);
+    const othC=d.reps.filter(x=>elig(x)&&x.s.effect!=="accel").sort((a,b)=>b.marg-a.marg);
+    accel.bestNext=accC.length?accC[0].marg:0;accel.bestAcc=accC[0]||null;
+    accel.alt=othC.length?othC[0].marg:0;accel.altSkill=othC[0]||null;
+    accel.ok=accel.bestNext<0.05||accel.bestNext<=accel.alt;
   }
   // 継承固有の候補：単独の評価で上位24件（同名は1件）を、手持ち（推奨以上のスキルと回復）と合わせて走らせたときに増える分で評価し直す。
   // おすすめ6件は、選んだものを順に積み上げながら1件ずつ選ぶ（加速どうしなど効果が重なるものは後回しになる）
@@ -1064,7 +1072,7 @@ function renderSheet(p){
       <div class="kpi"><span class="k">スタミナ（持久力温存）</span><span class="v">${ok?"起きない":"−"+Math.round(m.deficit)}</span>
         <span class="d">${stState} ${conserveNote}。掛かり率${(m.rushChance*100).toFixed(1)}%を期待値で反映。${compNote?`位置取りの消費：${compNote}。`:""}${m.deficitRush>0?`<br>掛かりが最大12秒続くと約${Math.round(m.deficitRush)}不足（金回復 約${(m.deficitRush/m.unit).toFixed(1)}個分）`:"<br>掛かりが最大12秒続いても起きない"}</span></div>
       <div class="kpi"><span class="k">終盤の加速</span><span class="v">${A.reach1.reachPos!=null?Math.round(A.reach1.reachPos-A.reach1.lateStart)+"<small>mで最高速度</small>":"届かない"}</span>
-        <span class="d">${accOk?'<span class="state st-ok">足りる</span>':'<span class="state st-ng">足りない</span>'} 加速スキルなしだと${rd(A.reach0)}で最高速度に届く。手持ちの加速${m.accelOwn}個で${rd(A.reach1)}に短縮${A.rand?`（ランダム位置の加速${A.rand}個は数えていない）`:""}。白因子の加速をもう1個足したときの効果は最大${A.bestNext.toFixed(2)}バ身${accOk?`（推奨の${S.rec}バ身未満）`:`（推奨の${S.rec}バ身以上なので足す価値あり。候補${m.accelInh}個）`}</span></div>
+        <span class="d">${accOk?'<span class="state st-ok">足りる</span>':'<span class="state st-ng">足りない</span>'} 加速スキルなしだと${rd(A.reach0)}で最高速度に届く。手持ちの加速${m.accelOwn}個で${rd(A.reach1)}に短縮${A.rand?`（ランダム位置の加速${A.rand}個は数えていない）`:""}。白因子の加速をもう1個足すと最大${A.bestNext.toFixed(2)}バ身${A.bestAcc?`（${esc(A.bestAcc.s.name)}）`:""}、加速以外で因子化できるいちばん良いスキルは${A.alt.toFixed(2)}バ身${A.altSkill?`（${esc(A.altSkill.s.name)}）`:""}。${accOk?"加速以外に因子の枠を使ったほうが得なので、加速は足りています":"加速を足したほうが得なので、加速の因子を優先しましょう"}</span></div>
       <div class="kpi"><span class="k">白因子で拾うスキル</span><span class="v">${m.fac.top.length}<small> 超優先</small> ${m.fac.high.length}<small> 優先</small></span><span class="d">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントで取れない白スキルのうち、効果の大きいもの</span></div>
     </div>`)}
     ${sec("loadout","おすすめのスキル構成",loadHtml)}
