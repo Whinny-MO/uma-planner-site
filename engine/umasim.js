@@ -255,6 +255,11 @@
           case "phase_firstquarter_random": { const [a, b] = phaseIv[v]; lim([[a, a + (b - a) / 4]]); random = true; break; }
           case "phase_corner_random": lim(intersect(ctx.corners.map(([a, b]) => [a, b]), [phaseIv[v]])); random = true; break;
           case "phase_straight_random": lim(intersect(ctx.straights, [phaseIv[v]])); random = true; break;
+          case "phase_first_half_straight_random": { const [a, b] = phaseIv[v]; lim(intersect(ctx.straights, [[a, (a + b) / 2]])); random = true; break; }
+          case "phase_latter_half_straight_random": { const [a, b] = phaseIv[v]; lim(intersect(ctx.straights, [[(a + b) / 2, b]])); random = true; break; }
+          case "last_straight_random": lim([ctx.lastStraight]); random = true; break;
+          case "phase_firstquarter": { const [a, b] = phaseIv[v]; lim([[a, a + (b - a) / 4]]); break; }
+          case "up_slope_random_later_half": lim(intersect(ctx.ups.map(([a, b]) => [a, b]), [[D / 2, D]])); random = true; break;
           case "corner_random": lim(ctx.corners.filter((c) => c[2] === v).map(([a, b]) => [a, b])); random = true; break;
           case "all_corner_random": lim(ctx.corners.map(([a, b]) => [a, b])); random = true; break;
           case "corner":

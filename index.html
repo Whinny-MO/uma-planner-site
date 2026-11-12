@@ -1077,7 +1077,9 @@ function skillCost(x){
   const d=lv=>Math.min(.9,(HINT_DISC[Math.max(0,Math.min(5,lv|0))]||0)+condDisc());
   // 金スキルは、イベントで取るならそのLv、それ以外は「金スキルの想定ヒントLv」。白スキルは想定ヒントLv
   const lvOf=k=>k.id===x.s.id&&x.route.evLv!=null?x.route.evLv:k.rarity==="gold"?Math.min(lvBase,S.hintGold??1):lvBase;
-  return (x.chain||[x.s]).reduce((t,k)=>t+Math.round((k.sp||0)*(1-d(lvOf(k)))),0);
+  // 育成ウマ娘の初期スキル（覚醒Lv0）は最初から持っているので、下位の段階に含まれていてもSPはかからない
+  const rk=(chara()||{}).skillRanks||{};
+  return (x.chain||[x.s]).filter(k=>k.id===x.s.id||rk[k.id]!==0).reduce((t,k)=>t+Math.round((k.sp||0)*(1-d(lvOf(k)))),0);
 }
 // 自分の体力を使う効果（アグレッシブの−2%など）を持つか。他のウマ娘にかかるデバフと、「すごく使ってしまうことがある」型の大きな消費は除く
 const selfHpCost=s=>(s.ep||[]).some(q=>(q.effects||[]).some(e=>e.target===9&&e.value<0&&e.value>-5000&&(e.rangeType==null||e.rangeType===1)));
