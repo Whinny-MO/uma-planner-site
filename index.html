@@ -143,6 +143,8 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .xsheet .xcs{display:flex;flex-wrap:wrap;gap:3px}
 .xsheet .xc{border:1.5px solid #cfdcd3;border-radius:999px;padding:0 7px;font-size:11.5px;background:#fff}
 .xsheet .xc.xg{border-color:#e0b93b;background:#fff6d8}
+.xsheet .xc.xev{border-color:#e5534b;background:#ffe5e3;color:#a32a23}
+.xsheet .xc.xun{border-color:#e98bb5;background:linear-gradient(90deg,#fde8f2,#eef6ff)}
 .xsheet .xe{font-size:11.5px}
 .xsheet .xf{font-size:10px;color:#8a978f;text-align:right;margin-top:4px}
 .cbadge{display:inline-block;font-size:11px;font-weight:800;border-radius:999px;padding:0 7px;margin-right:4px;white-space:nowrap}
@@ -1462,13 +1464,14 @@ let lastExport=null,lastM=null;
 function buildExportHtml(){
   const {p,d,m,L,connList}=lastExport;const c=p.c,ch=p.ch,w=m.withOwn,A=m.accel;
   const ev=(D.events||[]).find(e=>e.courseId===c.id&&e.kind===st.ev&&(!e.season||e.season===st.season));
-  const chip=(t,g)=>`<span class="xc${g?" xg":""}">${esc(t)}</span>`;
+  const chip=(t,g)=>`<span class="xc${g===true?" xg":g?" x"+g:""}">${esc(t)}</span>`;
+  const rk=s=>{const r=rcls(s);return r==="evo"?"ev":r==="unique"?"un":r==="gold"?true:false};
   const row=(k,v)=>`<div class="xr"><div class="xk">${k}</div><div class="xv">${v}</div></div>`;
   const stam=m.deficitNoHeal<=0?"回復なしで持久力温存は起きない":m.deficit<=0?`回復スキルで回避できる（回復なしだと金回復 約${(m.deficitNoHeal/m.unit).toFixed(1)}個分不足）`:`手持ちの回復でも約${Math.round(m.deficit)}不足（金回復 約${(m.deficit/m.unit).toFixed(1)}個分）`;
   const acc=`${A.ok?"足りる":"足りない"}・終盤に入ってから約${A.reach1.reachPos!=null?Math.round(A.reach1.reachPos-A.reach1.lateStart):"—"}mで最高速度`;
   const inh=(m.sel.length?m.sel:[]).map(u=>chip(u.s.name+"（"+u.x.name+"）"+(u.evo?"・継承進化":""))).join("")||"未選択";
-  const lo=L.picked.map(k=>chip(k.x.s.name,k.x.s.rarity==="gold"||k.x.s.rarity==="unique")).join("");
-  const fac=(list)=>list.length?list.map(x=>chip(x.s.name)).join(""):"—";
+  const lo=L.picked.map(k=>chip(k.x.s.name,rk(k.x.s))).join("");
+  const fac=(list)=>list.length?list.map(x=>chip(x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name)).join(""):"—";
   const evs=d.guide.filter(g=>g.sel&&g.sel.res.some(r=>r.skills.some(k=>k.s.rarity==="gold"))).map(g=>`<div class="xe"><b>${esc(g.card.name)}</b>「${esc(g.ev.title)}」${g.sel.text?"→ "+esc(g.sel.text.replace(/（リンク対象[^）]*）/,"")):""}：${[...new Set(g.sel.res.flatMap(r=>r.skills.filter(k=>k.s.rarity==="gold").map(k=>k.s.name)))].map(esc).join("・")}</div>`).join("")||"—";
   const conn=connList.filter(x=>x.conn.rate>=0.99).map(x=>chip(x.s.name)).join("")||"—";
   const deck=p.deckCards.map(cd=>esc(cd.name)).join("・")||"—";
