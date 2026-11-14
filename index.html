@@ -163,6 +163,22 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .sh-b{padding:14px 16px 16px;display:grid;gap:16px}
 .ribbon{display:inline-block;justify-self:start;background:var(--pink);color:#fff;font-weight:800;font-size:13.5px;padding:3px 16px 3px 12px;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 50%,100% 100%,0 100%);border-radius:6px 0 0 6px}
 .kpis{display:grid;grid-template-columns:1fr;gap:10px}
+.tmem{display:grid;gap:8px}
+.tmem .mrow{display:grid;gap:6px;border:2px solid var(--line);border-radius:14px;padding:8px 10px;background:#fff}
+.tmem .mhead{display:flex;align-items:center;gap:8px;min-width:0}
+.tmem .mhead .no{font-weight:800;color:var(--muted);font-size:12px;white-space:nowrap}
+.tmem .mhead .nm{font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.tmem .mhead .nm small{display:block;font-size:10.5px;color:var(--muted);font-weight:700}
+.tmem .seg button{padding:5px 8px;font-size:12.5px}
+.ttab{overflow-x:auto}
+.ttab table{border-collapse:collapse;width:100%;font-size:12.5px}
+.ttab th,.ttab td{border-bottom:1px solid var(--line);padding:5px 4px;text-align:center;white-space:nowrap}
+.ttab th:first-child,.ttab td:first-child{text-align:left;white-space:normal;min-width:7.5em}
+.ttab th{font-size:11px;color:var(--muted);font-weight:800}
+.ttab .tg{display:inline-block;min-width:2.6em;border-radius:999px;font-size:10.5px;font-weight:800;color:#fff;padding:1px 6px}
+.ttab .tg.top{background:var(--must)}.ttab .tg.high{background:#e8a33c}.ttab .tg.norm{background:#9aa0a6}
+.ttab tr.sec td{background:var(--bg2,#f6f3ee);font-weight:800;font-size:11.5px;text-align:left}
+.ttab .covm{color:#4f7a2c;font-weight:800;font-size:11px}
 .vslots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .vslots button{font:inherit;text-align:left;border:2px solid var(--line);background:#fff;border-radius:12px;padding:6px 8px;cursor:pointer;min-width:0;display:grid;gap:1px}
 .vslots button[aria-pressed="true"]{border-color:var(--pink);box-shadow:inset 0 0 0 1px var(--pink)}
@@ -280,8 +296,9 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
     <button class="tab" data-step="deck"><span class="no">3</span>デッキ</button>
     <button class="tab" data-step="plan"><span class="no">4</span>プラン</button>
     <button class="tab" data-step="farm"><span class="no">5</span>因子周回</button>
-    <button class="tab" data-step="verify"><span class="no">6</span>サポカ検証</button>
-    <button class="tab" data-step="settings"><span class="no">7</span>設定</button>
+    <button class="tab" data-step="team"><span class="no">6</span>チーム</button>
+    <button class="tab" data-step="verify"><span class="no">7</span>サポカ検証</button>
+    <button class="tab" data-step="settings"><span class="no">8</span>設定</button>
   </div></nav>
 
   <section class="panel" id="p-race">
@@ -392,6 +409,15 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
       <div class="btnrow"><button class="btn grow" type="button" id="farmFromPlan">デッキ案をそのまま入れる</button><button class="btn grow" type="button" id="farmClear">全部外す</button></div>
     </div></div>
     <div id="farmCov"></div>
+  </section>
+
+  <section class="panel" id="p-team" hidden>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>チームの因子比較</h2></div><div class="card-b">
+      <p class="hint">同じレースに出す2〜3人で、必要な因子を並べて比べます。レース条件・デッキ・目標ステータス・SPなどは、プランの設定（1人目）をそのまま使います。育成ウマ娘と同じキャラのサポートカードは編成できないため、自動で外して計算します。継承固有は各ウマ娘のおすすめを使います。</p>
+      <div class="tmem" id="teamMembers"></div>
+      <div class="btnrow"><button class="btn grow" type="button" id="teamAdd">ウマ娘を追加（最大3人）</button><button class="btn primary grow" type="button" id="teamRun">比較する</button></div>
+    </div></div>
+    <div id="teamOut"></div>
   </section>
 
   <section class="panel" id="p-verify" hidden>
@@ -532,7 +558,8 @@ function apts(){const ch=chara(),c=course(),cat=distCat(c.dist);
 let planDirty=true, lastPlan=null;
 function setStep(name){
   document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-current",b.dataset.step===name?"true":"false"));
-  ["race","uma","deck","plan","farm","verify","settings"].forEach(n=>{$("#p-"+n).hidden=n!==name});
+  ["race","uma","deck","plan","farm","team","verify","settings"].forEach(n=>{$("#p-"+n).hidden=n!==name});
+  if(name==="team"&&D)renderTeam();
   if(name==="farm"&&D)renderFarm();
   if(name==="verify"&&D)renderVerify();
   if(name==="plan"&&D)computeAndRender();
@@ -1254,7 +1281,83 @@ $("#farmFromPlan").addEventListener("click",()=>{
 });
 $("#farmClear").addEventListener("click",()=>{st.farmDeck=[null,null,null,null,null,null];persist();renderFarm()});
 
-/* ---------- 6. サポカ検証 ---------- */
+/* ---------- 6. チーム ---------- */
+const MAIN_LABEL=()=>{const c=chara();return c?`${c.title}${c.name}`:"（未選択）"};
+function renderTeam(){
+  st.team=Array.isArray(st.team)?st.team.slice(0,2):[];
+  const ch=chara();
+  const rowMain=`<div class="mrow"><div class="mhead"><span class="no">1人目</span><span class="nm"><small>${esc(ch?ch.title:"")}</small>${esc(ch?ch.name:"（ウマ娘タブで選択）")}</span><span class="hint">${esc(st.style)}</span></div><span class="hint">1人目はプランの設定のまま（ウマ娘タブで変更）</span></div>`;
+  const rows=st.team.map((m,i)=>{const c=D.charas.find(x=>x.id===m.charaId);return`<div class="mrow"><div class="mhead"><span class="no">${i+2}人目</span><button class="pick" type="button" data-tpick="${i}" style="flex:1;min-width:0"><span><span class="t">${esc(c?c.title:"")}</span><span class="n">${esc(c?c.name:"ウマ娘を選ぶ")}</span></span><span class="chg">変更 ›</span></button><button class="btn sm" type="button" data-tdel="${i}" aria-label="外す">✕</button></div><div class="seg" data-tseg="${i}"></div></div>`}).join("");
+  $("#teamMembers").innerHTML=rowMain+rows;
+  st.team.forEach((m,i)=>seg($(`[data-tseg="${i}"]`),STYLES,m.style,v=>{m.style=v;persist()}));
+  $("#teamMembers").querySelectorAll("[data-tpick]").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.tpick;
+    const items=D.charas.map(c=>({c,search:`${c.name}${c.title}${c.nickname}`}));
+    openPicker({title:"ウマ娘を選ぶ",items,render:it=>`<span><span class="t">${esc(it.c.title)}</span><span class="n">${esc(it.c.name)}</span></span>`,
+      onPick:it=>{st.team[i].charaId=it.c.id;persist();renderTeam()}})}));
+  $("#teamMembers").querySelectorAll("[data-tdel]").forEach(b=>b.addEventListener("click",()=>{st.team.splice(+b.dataset.tdel,1);persist();renderTeam()}));
+  $("#teamAdd").disabled=st.team.length>=2;
+}
+$("#teamAdd").addEventListener("click",()=>{st.team=st.team||[];if(st.team.length>=2)return;st.team.push({charaId:null,style:st.style});persist();renderTeam()});
+// 1人分のプランを、育成ウマ娘・脚質だけ差し替えて計算する（st を一時的に書き換え、終わったら元に戻す）
+async function planFor(charaId,style,onProgress){
+  const keep={charaId:st.charaId,style:st.style,apt:st.apt,inherit:st.inherit,deck:st.deck};
+  try{
+    const c=D.charas.find(x=>x.id===charaId);
+    // 1人目（プランと同じウマ娘・脚質）は、プランで選んだ継承固有をそのまま使う
+    const same=charaId===keep.charaId&&style===keep.style;
+    st.charaId=charaId;st.style=style;st.apt=same?keep.apt:null;st.inherit=same?(keep.inherit||[]).slice():[];
+    // 育成ウマ娘と同じキャラのサポートカードは編成できないので外す
+    const dropped=keep.deck.map(id=>SP[id]).filter(cd=>cd&&c&&cd.name===c.name);
+    st.deck=keep.deck.map(id=>SP[id]&&c&&SP[id].name===c.name?null:id);
+    const p=await computePlan(onProgress);
+    const d=derive(p);let m=summarize(p,d);
+    if(!st.inherit.length&&m.recIds&&m.recIds.length){st.inherit=m.recIds.slice(0,6);m=summarize(p,d)}
+    let L=buildLoadout(p,d,m);if(staRecheck(p,d,m,L)){m=summarize(p,d);L=buildLoadout(p,d,m);staRecheck(p,d,m,L,true)}
+    const nm=x=>x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name;
+    const fac=new Map();for(const t of ["top","high","norm"])for(const x of m.fac[t])fac.set(x.s.groupId||x.s.id,{t,name:nm(x),v:x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj,heal:!!x.conserveNeed,id:x.s.id});
+    return{c,style,fac,dropped,accelOk:m.accel.ok,deficit:m.deficit,deficitNoHeal:m.deficitNoHeal,inh:st.inherit.map(id=>p.inhAll.find(u=>u.s.id===id)).filter(Boolean).map(u=>u.s.name)};
+  }finally{Object.assign(st,keep)}
+}
+async function runTeam(){
+  const out=$("#teamOut");
+  const mem=[{charaId:st.charaId,style:st.style},...(st.team||[]).filter(m=>m.charaId)];
+  if(mem.length<2){toast("2人目のウマ娘を選んでください");return}
+  if(computing)return;computing=true;
+  out.innerHTML=`<div class="progress"><span id="tlab">計算中…</span><div class="bar"><i id="tbar"></i></div></div>`;
+  const res=[];
+  try{
+    for(let i=0;i<mem.length;i++){
+      $("#tlab").textContent=`計算中…（${i+1}/${mem.length}人目）`;
+      res.push(await planFor(mem[i].charaId,mem[i].style,f=>{const b=$("#tbar");if(b)b.style.width=Math.round((i+f)/mem.length*100)+"%"}));
+      await new Promise(r=>setTimeout(r));
+    }
+    out.innerHTML=teamHtml(res);
+  }catch(e){console.error(e);out.innerHTML=`<div class="progress" style="color:var(--must)">計算中にエラーが起きました。</div>`}
+  finally{computing=false}
+}
+$("#teamRun").addEventListener("click",runTeam);
+function teamHtml(res){
+  const keys=new Map();
+  for(const r of res)for(const [g,f] of r.fac)if(!keys.has(g))keys.set(g,f.name);
+  const W={top:3,high:2,norm:1};
+  const cov=farmCover({top:[],high:[],norm:[...keys].map(([g])=>{const f=res.map(r=>r.fac.get(g)).find(Boolean);return{s:SK[f.id]}})},st.farmDeck);
+  const rows=[...keys].map(([g,name])=>{const cells=res.map(r=>r.fac.get(g)||null);const need=cells.filter(c=>c&&c.t!=="norm").length,any=cells.filter(Boolean).length;
+    return{g,name,cells,need,any,score:cells.reduce((a,c)=>a+(c?W[c.t]:0),0),heal:cells.some(c=>c&&c.heal),covered:cov&&cov.who.has(cells.find(Boolean).id)}});
+  const n=res.length;
+  const grp=[[`${n}人とも必要（超優先・優先）`,r=>r.need===n],[`${n===3?"2人":"一部"}に必要（超優先・優先）`,r=>r.need>=2&&r.need<n],["1人だけ必要（超優先・優先）",r=>r.need===1],["通常のみ",r=>r.need===0]];
+  const tag=c=>c?`<span class="tg ${c.t}">${c.t==="top"?"超優先":c.t==="high"?"優先":"通常"}</span>`:"—";
+  const head=`<tr><th>因子</th>${res.map((r,i)=>`<th>${i+1}人目<br>${esc(r.c.name)}<br>${esc(r.style)}</th>`).join("")}</tr>`;
+  const body=grp.map(([lab,f])=>{const rs=rows.filter(f).sort((a,b)=>b.score-a.score);if(!rs.length)return"";
+    return`<tr class="sec"><td colspan="${n+1}">${lab}（${rs.length}）</td></tr>`+rs.map(r=>`<tr><td>${esc(r.name)}${r.heal?' <span class="hint">温存回避</span>':""}${r.covered?' <span class="covm">周回◯</span>':""}</td>${r.cells.map(c=>`<td>${tag(c)}</td>`).join("")}</tr>`).join("")}).join("");
+  const sta=r=>r.deficit<=0?(r.deficitNoHeal<=0?"回復なしで起きない":"回復で回避"):"起きる";
+  const sum=res.map((r,i)=>`<li><span><b>${i+1}人目 ${esc(r.c.title)}${esc(r.c.name)}（${esc(r.style)}）</b><small style="display:block;color:var(--muted)">加速：${r.accelOk?"足りる":"足りない"}・持久力温存：${sta(r)}${r.inh.length?"・継承固有：「"+r.inh.map(esc).join("」「")+"」":""}${r.dropped.length?"・同じキャラのため外したサポカ："+r.dropped.map(cd=>esc(cd.title+cd.name)).join("、"):""}</small></span></li>`).join("");
+  return`<div class="card"><div class="card-h"><span class="mk"></span><h2>必要な因子の比較</h2></div><div class="card-b">
+    <p class="hint">各ウマ娘の「因子化するスキル」を並べたものです。上の段ほど多くのウマ娘に必要なので、因子周回で作ると効率が良い因子です。${cov?"「周回◯」は、因子周回タブで設定したデッキのヒントでカバーできている因子です。":""}</p>
+    <div class="ttab"><table>${head}${body}</table></div></div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>ウマ娘ごとの判定</h2></div><div class="card-b"><ul class="ulist">${sum}</ul></div></div>`;
+}
+
+/* ---------- 7. サポカ検証 ---------- */
 function renderVerify(){
   st.verify=st.verify||{slot:0,cand:null};
   const v=st.verify;
@@ -1554,7 +1657,7 @@ function renderSaved(){const list=LS.get("umaplan2.saved",[]);
 const b64u={enc:u8=>{let s="";for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode(...u8.subarray(i,i+0x8000));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")},
   dec:t=>{const s=atob(t.replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(s,c=>c.charCodeAt(0))}};
 async function packPlan(){
-  const keep=["ev","courseId","scenario","ground","weather","season","charaId","style","apt","stats","mood","spBudget","deck","inherit","evChoice","field","debuff","farmDeck"];
+  const keep=["ev","courseId","scenario","ground","weather","season","charaId","style","apt","stats","mood","spBudget","deck","inherit","evChoice","field","debuff","farmDeck","team"];
   const o={v:1,st:Object.fromEntries(keep.map(k=>[k,st[k]]))};
   const raw=new TextEncoder().encode(JSON.stringify(o));
   if(typeof CompressionStream==="function"){
