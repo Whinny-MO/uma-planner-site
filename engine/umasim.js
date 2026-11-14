@@ -86,6 +86,13 @@
       case "distance_diff_top": case "distance_diff_top_float": {
         const [a, b0] = GAP_TOP[st]; const b = ctx.opts.posMode === "style" && ctx.opts.frontStrict && st <= 1 ? a : b0; let n = 0; for (let g = a; g <= b; g++) if (cmp(g, sign, v)) n++; return n / (b - a + 1);
       }
+      // 追い抜き・競り合い・ブロックなど、相手次第の条件：U-tools と同じく「起きる前提」で見る（options.sitAssume、初期値 true）
+      case "is_overtake": case "overtake_target_time": case "changeOrderUp": case "change_order_up_end_after": case "change_order_up_middle": case "change_order_up_finalcorner_after":
+      case "changeOrderDown": case "bashin_diff_infront": case "bashin_diff_behind": case "near_count": case "blocked_front": case "blocked_side_continuetime":
+      case "blocked_front_continuetime": case "is_surrounded": case "infront_near_lane_time": case "behind_near_lane_time": case "is_behind_in": case "visiblehorse": case "near_infront_count":
+        if (ctx.opts.sitAssume !== false) return 1;
+    }
+    switch (key) {
       case "is_overtake": case "overtake_target_time": case "changeOrderUp":
       case "change_order_up_end_after": case "change_order_up_middle": case "change_order_up_finalcorner_after":
         return OVERTAKE_P[st];
@@ -613,7 +620,9 @@
   function skillBashin(ctx, skill, opts) {
     const samples = (opts && opts.samples) || 12;
     const base = (opts && opts.base) || run(ctx, (opts && opts.basePlans) || []);
-    const first = planSkill(ctx, skill, 0.5);
+    // noHeal：持久力回復の効果を外して、速度・加速・前に出る効果だけで評価する（回復の要否はスタミナの判定で別に見る）
+    const strip = (plans) => !(opts && opts.noHeal) ? plans : plans.map((p) => ({ ...p, effects: p.effects.filter((e) => !(e.target === 9 && e.value > 0)), alts: (p.alts || []).map((a) => ({ ...a, effects: a.effects.filter((e) => !(e.target === 9 && e.value > 0)) })) }));
+    const first = strip(planSkill(ctx, skill, 0.5));
     if (!first.length) return { ok: false, reason: "このレースでは発動しない" };
     const isRandom = first.some((p) => p.random);
     const n = isRandom ? samples : 1;
@@ -643,7 +652,7 @@
     let pAny = 0;
     for (let i = 0; i < n; i++) {
       const frac = n === 1 ? 0.5 : (i + 0.5) / n;
-      const vars = variantsOf(planSkill(ctx, skill, frac));
+      const vars = variantsOf(strip(planSkill(ctx, skill, frac)));
       let acc = 0;
       for (const vr of vars) {
         if (vr.w <= 0) continue;

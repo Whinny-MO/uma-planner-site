@@ -751,6 +751,8 @@ function setPin(sid,mode){st.pins=st.pins||{};const k=pinKey();const v=pinsNow()
   v.must=v.must.filter(x=>x!==sid);v.never=v.never.filter(x=>x!==sid);if(mode==="must")v.must.push(sid);if(mode==="never")v.never.push(sid);
   if(!v.must.length&&!v.never.length)delete st.pins[k];else st.pins[k]=v;persist();if(lastPlan&&!planDirty&&!computing)renderSheet(lastPlan)}
 const pinOf=sid=>{const k=SK[sid];if(!k)return null;const g=k.groupId||k.id,v=pinsNow(),gg=id=>{const z=SK[id];return z&&(z.groupId||z.id)};return v.must.some(id=>gg(id)===g)?"must":v.never.some(id=>gg(id)===g)?"never":null};
+// 持久力回復の効果を持つか（獲得バ身には含めず、スタミナの判定で別に評価する）
+const hasHeal=s=>(s.ep||[]).some(q=>(q.effects||[]).some(e=>e.target===9&&e.value>0&&(e.rangeType==null||e.rangeType===1)));
 const isLottery=s=>(s.ep||[]).some(q=>(q.conditions||[]).some(g=>["random_lot","random_lot_shared"].some(k=>(g[k]||[]).some(c=>Number(c.value)<50))));
 const mOf=(s,r)=>(S.randAccelSafe&&s.effect==="accel"&&r.random&&r.q25!=null)?r.q25:r.mean;
 // スキル判定の段階：プランごとに、入手できるスキルでいちばん伸びるもの（TH.best）を基準に、
@@ -806,14 +808,14 @@ async function computePlan(onProgress){
   const rows=[];
   for(const s of heals){
     const base=UmaSim.run(ctx,healPlans);
-    const r=UmaSim.skillBashin(ctx,s,{base,basePlans:healPlans,samples:S.samples});
+    const r=UmaSim.skillBashin(ctx,s,{noHeal:true,base,basePlans:healPlans,samples:S.samples});
     rows.push({s,r,exp:r.ok?r.mean*rate*(r.folded?1:(r.prob??1)):0});
     if(r.ok&&r.mean>0.05){const pl=UmaSim.planSkill(ctx,s,.5);healPlans=healPlans.concat(pl);if(deckAny.has(s.id))ownHealPlans=ownHealPlans.concat(pl)}
     await tick();
   }
   const base=UmaSim.run(ctx,ownHealPlans);
   for(const s of others){
-    const r=UmaSim.skillBashin(ctx,s,{base,basePlans:ownHealPlans,samples:S.samples});
+    const r=UmaSim.skillBashin(ctx,s,{noHeal:true,base,basePlans:ownHealPlans,samples:S.samples});
     const passive=(s.ep||[]).every(p=>p.baseTime<0);
     const fieldDep=r.ok&&(r.unknown||[]).some(k=>FIELD_KEYS.test(k));
     rows.push({s,r,field:fieldDep,exp:r.ok?mOf(s,r)*(passive?1:rate)*(fieldDep?0.5:1)*(r.folded?1:(r.prob??1)):0});
@@ -828,7 +830,7 @@ async function computePlan(onProgress){
     // 継承進化：一部のウマ娘（ステイゴールド・エピファネイア・ラインクラフトなど）は、所持していて直親にすると継承固有が強化版になる
     const evo=S.inhEvo!==false?EVO_INH.get(x.uniqueSkillId):null;
     if(evo)s9=evo;
-    const r=UmaSim.skillBashin(ctx,s9,{base,basePlans:ownHealPlans,samples:Math.min(6,S.samples)});
+    const r=UmaSim.skillBashin(ctx,s9,{noHeal:true,base,basePlans:ownHealPlans,samples:Math.min(6,S.samples)});
     inhAll.push({x,s:s9,evo:!!evo,r,exp:r.ok?mOf(s9,r)*rate*(r.folded?1:(r.prob??1)):0});
     await tick();
   }
@@ -1088,7 +1090,7 @@ function summarize(p,d){
   for(const x of d.reps){x.tier=x.tierBase;x.marg=null}
   let bestNext=0;
   for(const x of inhAcc){
-    const r=UmaSim.skillBashin(ctx,x.s,{base:runA,basePlans:baseA,samples:Math.min(6,S.samples)});
+    const r=UmaSim.skillBashin(ctx,x.s,{noHeal:true,base:runA,basePlans:baseA,samples:Math.min(6,S.samples)});
     x.marg=r.ok?mOf(x.s,r)*p.rate*(r.folded?1:(r.prob??1)):0;
     x.tier=tierOf(Math.min(x.expAdj,x.marg));
     bestNext=Math.max(bestNext,x.marg);
@@ -1105,7 +1107,7 @@ function summarize(p,d){
     const runAll=UmaSim.run(ctx,baseAll);
     for(const x of d.reps){
       if(!(x.route&&x.route.kind==="inh"&&x.r.ok&&x.s.effect!=="heal"&&x.tierBase!=="none"))continue;
-      const r=UmaSim.skillBashin(ctx,x.s,{base:runAll,basePlans:baseAll,samples:Math.min(6,S.samples)});
+      const r=UmaSim.skillBashin(ctx,x.s,{noHeal:true,base:runAll,basePlans:baseAll,samples:Math.min(6,S.samples)});
       x.marg=r.ok?mOf(x.s,r)*(isPas(x.s)?1:p.rate)*(x.field?.5:1)*(r.folded?1:(r.prob??1)):0;
       x.tier=tierOf(Math.min(x.expAdj,x.marg));
     }
@@ -1131,7 +1133,7 @@ function summarize(p,d){
   let baseI=m0heal.concat(ownTakenI.flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)));
   const pool=[];const seenN=new Set();
   for(const u of p.inhAll){if(u.exp<=0.02||seenN.has(u.s.name))continue;seenN.add(u.s.name);pool.push(u);if(pool.length>=24)break}
-  const margI=(u,plans,run)=>{const r=UmaSim.skillBashin(ctx,u.s,{base:run,basePlans:plans,samples:Math.min(6,S.samples)});return r.ok?mOf(u.s,r)*(isPasI(u.s)?1:p.rate)*(r.folded?1:(r.prob??1)):0};
+  const margI=(u,plans,run)=>{const r=UmaSim.skillBashin(ctx,u.s,{noHeal:true,base:run,basePlans:plans,samples:Math.min(6,S.samples)});return r.ok?mOf(u.s,r)*(isPasI(u.s)?1:p.rate)*(r.folded?1:(r.prob??1)):0};
   let runI=UmaSim.run(ctx,baseI);
   for(const u of pool)u.mexp=margI(u,baseI,runI);
   const recIds=[];let left=pool.slice();
@@ -1249,7 +1251,7 @@ function tierByLoadout(d,L){
 function buildLoadout(p,d,m,ownOnly){
   const ctx=p.ctx,budget=st.spBudget??3000;
   const isPassive=s=>(s.ep||[]).length>0&&s.ep.every(q=>q.baseTime<0);
-  const valOf=(x,plans,baseRun)=>{const r=UmaSim.skillBashin(ctx,x.s,{base:baseRun,basePlans:plans,samples:Math.min(6,S.samples)});
+  const valOf=(x,plans,baseRun)=>{const r=UmaSim.skillBashin(ctx,x.s,{noHeal:true,base:baseRun,basePlans:plans,samples:Math.min(6,S.samples)});
     return r.ok?mOf(x.s,r)*(isPassive(x.s)?1:p.rate)*(x.field?.5:1)*(r.folded?1:(r.prob??1)):0};
   const inhCost=Math.round(200*(1-Math.min(.9,(HINT_DISC[S.hintInh]||0)+condDisc())));
   let plans=m.sel.flatMap(u=>UmaSim.planSkill(ctx,u.s,.5));
@@ -1313,6 +1315,7 @@ function skRow(x){
   const sp=spText(x);if(sp)meta.push(sp);
   {const pm=pinOf(x.s.id);if(pm==="must")meta.push("必ず取る（自分で指定）");if(pm==="never")meta.push("取らない（自分で指定）")}
   if(x.evoNote)meta.push(x.evoNote);
+  if(hasHeal(x.s)&&!x.conserveNeed)meta.push("回復の効果は獲得バ身に含めず、スタミナの判定（持久力温存の回避）で評価");
   if(x.charaEv)meta.push("育成イベントでも取れる可能性あり："+x.charaEv.map(e=>`「${e.title}」${e.choice?"の「"+e.choice+"」":""}で${e.name} Lv${e.lv}`).join("／"));
   if(x.conserveNeed)meta.push(x.costNeed?"持久力温存の回避に必要（体力を使うスキルの分）":"持久力温存の回避に必要");
   if(x.inLoadout)meta.push("おすすめ構成に入る");
@@ -1633,7 +1636,7 @@ function renderSheet(p){
     ?`<p class="hint" style="color:var(--opt)">全開スパートを仮モデルで計算しています（上昇量の上限${S.ftGain}m/s・伸びの係数${S.ftCoef}）。${ftb&&ftb.ftStart!=null?`残り約${Math.round(p.c.dist-ftb.ftStart)}mで発動し、ゴールまでに最高速度が約${ftb.ftGain.toFixed(2)}m/s上がる想定です。`:"この条件では全力スパートの最高速度に届かないか、スピードが2000以下のため発動しない想定です。"}</p>`
     :(st.stats.spd>2000?`<p class="hint" style="color:var(--opt)">スピード2001以上で起きる「全開スパート」は計算に含めていません。設定タブで仮モデルをオンにすると計算に入れられます。</p>`:"");
   const guideHtml=d.guide.map(g=>`<div class="gcard"><div class="gh"><span class="type" style="background:${TYPE_COLOR[g.card.type]||"#999"}">${esc(g.card.type)}</span><b>${esc(g.card.name)}</b><span class="hint">「${esc(g.ev.title)}」${esc(g.ev.kind)}</span></div>${g.opts.map(o=>{const isSel=o===g.sel,isRec=o===g.rec&&g.opts.length>1&&o.best>0;
-    const body=`<span class="gt">${o.text?esc(o.text):"（選択肢なし）"}${isRec?'<span class="rec">おすすめ</span>':""}${isSel&&g.opts.length>1?'<span class="selp">取得予定</span>':""}</span><span class="gs">${o.res.map(r=>r.skills.length?r.skills.map(k=>`${o.multi?(r.pattern===1?"成功：":"失敗："):""}${esc(k.s.name)}${k.link?"（シナリオリンク）":` Lv${k.lv}`}${k.exp>0?`（${k.exp.toFixed(2)}バ身）`:"（このレースでは効果なし）"}`).join("、"):(o.multi?(r.pattern===1?"成功：":"失敗："):"")+"スキルなし").join("<br>")}</span>`;
+    const body=`<span class="gt">${o.text?esc(o.text):"（選択肢なし）"}${isRec?'<span class="rec">おすすめ</span>':""}${isSel&&g.opts.length>1?'<span class="selp">取得予定</span>':""}</span><span class="gs">${o.res.map(r=>r.skills.length?r.skills.map(k=>`${o.multi?(r.pattern===1?"成功：":"失敗："):""}${esc(k.s.name)}${k.link?"（シナリオリンク）":` Lv${k.lv}`}${k.exp>0?`（${k.exp.toFixed(2)}バ身${hasHeal(k.s)?"・回復は別":""}）`:hasHeal(k.s)?"（回復：スタミナの判定で評価）":"（このレースでは効果なし）"}`).join("、"):(o.multi?(r.pattern===1?"成功：":"失敗："):"")+"スキルなし").join("<br>")}</span>`;
     return g.opts.length>1?`<button type="button" class="gopt pick-opt${isSel?" best":""}" data-evk="${esc(g.key)}" data-evi="${o.i}" aria-pressed="${isSel}">${body}</button>`:`<div class="gopt best">${body}</div>`}).join("")}</div>`).join("");
   $("#sheet").innerHTML=`
   <div class="sh-top">
