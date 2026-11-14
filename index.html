@@ -891,6 +891,10 @@ function derive(p){
     const own=list.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
     const ok=own.length?own:list.filter(x=>x.route&&x.r.ok).sort((q,r)=>r.expAdj-q.expAdj||q.chainSp-r.chainSp);
     if(!ok.length)continue;
+    // 育成ウマ娘の進化スキルは、元のスキルと同じSPで効果が上乗せされる（回復が付くなど）ため、
+    // 1人走行のバ身で差が出なくても（同等・回復のみの上乗せ）進化後を採用する
+    {const ev=ok.find(x=>x.route.evo&&!x.route.evo.scenario&&x!==ok[0]&&x.expAdj>=ok[0].expAdj-0.01);
+     if(ev&&!(ok[0].route.evo&&!ok[0].route.evo.scenario)){ok.splice(ok.indexOf(ev),1);ok.unshift(ev)}}
     if(ok[0].route.scEvo){
       // シナリオ進化の候補：進化しなかった場合の代わり（同じ系統でいちばん良い段階）との差を伸びとする
       const alt=ok.find(x=>!x.route.scEvo)||null;

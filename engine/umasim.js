@@ -397,7 +397,9 @@
       const dur = p.baseTime > 0 ? (p.baseTime / 10000) * (ctx.D / 1000) : 0;
       // 全開スパート中が条件のものは、全開スパート開始位置〜ゴールの中の割合で発動位置を決める（走行中に確定）
       const plan = { pos: r.ft ? Infinity : pos, ftFrac: r.ft ? (r.random ? frac : 0) : null, dur, passive: p.baseTime < 0, effects: (p.effects || []).filter(selfEff), random: r.random, unknown: r.unknown, prob: r.prob, posKeys: r.posKeys, alts: [], dep: !!r.dep };
-      if (seen.has(sig)) { const main = out.find((x) => x.sig === sig); if (main) main.alts.push(plan); continue; }
+      // 続けて発動する効果（dep）は、同じ種類の効果でも分岐ではなく上乗せなので別に積む
+      if (!r.dep && seen.has(sig)) { const main = out.find((x) => x.sig === sig && !x.dep); if (main) main.alts.push(plan); continue; }
+      if (r.dep) { out.push(plan); continue; }
       seen.add(sig);
       plan.sig = sig;
       out.push(plan);
