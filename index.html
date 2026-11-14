@@ -270,6 +270,10 @@ details.sub>.tier{margin-top:6px}
 .facrow .chip.cov i{font-style:normal;font-weight:700;font-size:10px;color:#4f7a2c;margin-left:4px}
 .facrow .chip .cev{cursor:pointer;font-style:normal;font-size:9.5px;font-weight:800;color:#fff;background:#8a6fd1;border-radius:999px;padding:0 5px;margin-left:4px;vertical-align:1px}
 .indeck{display:block;font-size:11.5px;color:#d93a3a;font-weight:800;line-height:1.4}
+.pinlist{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.pinchip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:800;border-radius:999px;padding:2px 4px 2px 10px}
+.pinchip.must{background:#fde2ec;color:#a3264f}.pinchip.never{background:#ececec;color:#555}
+.pinchip button{border:0;background:rgba(0,0,0,.08);border-radius:999px;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:20px;padding:0}
 .prec{display:block;font-size:11px;color:#4f7a2c;font-weight:700;line-height:1.4;white-space:normal}
 .prec b{background:#7cc34a;color:#fff;border-radius:999px;padding:0 6px;margin-right:4px;font-size:10px}
 .pdb{margin-top:10px;border:2px dashed var(--line);border-radius:12px;padding:6px 10px}
@@ -1250,9 +1254,11 @@ function scEvoHtml(se){
 const NIGE_SET=["201601","201262","200452","210052"];
 function pinBar(L){
   const v=pinsNow();const n=v.must.length+v.never.length;
-  return `<div class="pinbar"><p class="hint">スキル名をタップすると、このレース・脚質で「必ず取る」「取らない」を指定できます。必ず取るスキルは、獲得バ身に関係なく最優先で構成に入ります。${n?`（指定中：必ず取る${v.must.length}・取らない${v.never.length}）`:""}${L.pinMissing&&L.pinMissing.length?`<br>必ず取るに指定したが、このプランでは取れないもの：${L.pinMissing.map(esc).join("・")}`:""}</p>
+  return `<div class="pinbar"><p class="hint">スキル名をタップすると、このレース・脚質で「必ず取る」「取らない」を指定できます。必ず取るスキルは、獲得バ身に関係なく最優先で構成に入ります。指定中のスキルは下に並び、✕で外せます。${n?`（指定中：必ず取る${v.must.length}・取らない${v.never.length}）`:""}${L.pinMissing&&L.pinMissing.length?`<br>必ず取るに指定したが、このプランでは取れないもの：${L.pinMissing.map(esc).join("・")}`:""}</p>
+    ${n?`<div class="pinlist">${v.must.map(id=>`<span class="pinchip must">必ず取る：${esc(SK[id]?.name||id)}<button type="button" data-unpin="${id}" aria-label="指定を外す">✕</button></span>`).join("")}${v.never.map(id=>`<span class="pinchip never">取らない：${esc(SK[id]?.name||id)}<button type="button" data-unpin="${id}" aria-label="指定を外す">✕</button></span>`).join("")}</div>`:""}
     <div class="btnrow">${st.style==="逃げ"?`<button type="button" class="btn sm" data-pinset="nige">逃げの定番（地固め・危険回避・ポジションセンス・アオハル点火・賢）を必ず取る</button>`:""}${n?`<button type="button" class="btn sm" data-pinset="clear">指定をすべて外す</button>`:""}</div></div>`;
 }
+document.addEventListener("click",e=>{const u=e.target.closest&&e.target.closest("[data-unpin]");if(u){setPin(u.dataset.unpin,"");toast("指定を外しました");return}});
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-pinset]");if(!b)return;
   st.pins=st.pins||{};
   if(b.dataset.pinset==="nige"){const v=pinsNow();for(const id of NIGE_SET){v.never=v.never.filter(x=>x!==id);if(!v.must.includes(id))v.must.push(id)}st.pins[pinKey()]=v;toast("逃げの定番を「必ず取る」にしました")}
