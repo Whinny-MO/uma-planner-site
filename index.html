@@ -165,6 +165,8 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .kpis{display:grid;grid-template-columns:1fr;gap:10px}
 .skpop{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:60;max-width:560px;margin:0 auto;background:var(--card,#fff);border:2px solid var(--line);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px 12px;display:grid;gap:4px;font-size:13.5px;line-height:1.6;animation:skpopIn .15s ease-out}
 .skpop p{margin:0}
+.skpop .pinrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.skpop .pinrow .btn.on{background:var(--pink);color:#fff;border-color:var(--pink)}
 .skpop-h{display:flex;align-items:center;gap:6px;min-width:0}
 .skpop-h b{font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .skpop-x{margin-left:auto;border:0;background:none;font:inherit;font-size:16px;color:var(--muted);cursor:pointer;padding:2px 6px}
@@ -733,6 +735,13 @@ const rcls=s=>s.rarityRaw===6?"evo":s.rarity;
 // 1人走行では判定できない状況次第の条件（scripts/check-skills.mjs の SITUATIONAL と対応）。人気は別に表示する
 const situLabel=k=>/^(hp_per)/.test(k)?"残り体力":/^(activate_count|is_activate|is_used_skill)/.test(k)?"ほかのスキルの発動":/^(compete_fight)/.test(k)?"競り合い":/^(is_move_lane|lane_type|.*_lane_)/.test(k)?"進路":/(temptation|isNoTemptation)/i.test(k)?"掛かり":/^(is_other_character|bashin_diff|near_|is_surrounded|blocked|overtake|is_overtake|is_behind|distance_diff_rate)/.test(k)?"相手との位置関係":/^(change_order|order_rate_.*continue)/.test(k)?"順位の変動":/^(running_style_count|nobody|same_skill_horse|is_exist_chara|is_exist_skill)/.test(k)?"出走メンバー":/^(is_badstart|is_goodstart)/.test(k)?"スタート":/^(motivation)/.test(k)?"やる気":null;
 const situLabels=r=>r&&r.ok?[...new Set((r.unknown||[]).map(situLabel).filter(Boolean))]:[];
+// 自分で指定した「必ず取る」「取らない」：レース（コース）と脚質の組み合わせごとに覚える
+const pinKey=()=>`${st.courseId}|${st.style}`;
+const pinsNow=()=>{const v=(st.pins||{})[pinKey()]||{};return{must:v.must||[],never:v.never||[]}};
+function setPin(sid,mode){st.pins=st.pins||{};const k=pinKey();const v=pinsNow();
+  v.must=v.must.filter(x=>x!==sid);v.never=v.never.filter(x=>x!==sid);if(mode==="must")v.must.push(sid);if(mode==="never")v.never.push(sid);
+  if(!v.must.length&&!v.never.length)delete st.pins[k];else st.pins[k]=v;persist();if(lastPlan&&!planDirty&&!computing)renderSheet(lastPlan)}
+const pinOf=sid=>{const k=SK[sid];if(!k)return null;const g=k.groupId||k.id,v=pinsNow(),gg=id=>{const z=SK[id];return z&&(z.groupId||z.id)};return v.must.some(id=>gg(id)===g)?"must":v.never.some(id=>gg(id)===g)?"never":null};
 const isLottery=s=>(s.ep||[]).some(q=>(q.conditions||[]).some(g=>["random_lot","random_lot_shared"].some(k=>(g[k]||[]).some(c=>Number(c.value)<50))));
 const mOf=(s,r)=>(S.randAccelSafe&&s.effect==="accel"&&r.random&&r.q25!=null)?r.q25:r.mean;
 // スキル判定の段階：プランごとに、入手できるスキルでいちばん伸びるもの（TH.best）を基準に、
@@ -1174,6 +1183,18 @@ function scEvoHtml(se){
   ${se.dead&&se.dead.length?`<p class="hint">このレースの条件では発動しないもの：${se.dead.map(esc).join("・")}</p>`:""}
   <p class="hint">出典：<a href="${esc(se.url||"")}" target="_blank" rel="noopener">ゲームエイト</a></p>`;
 }
+// 逃げの定番（地固め＋斜行3点セット：危険回避・ポジションセンス・アオハル点火・賢）
+const NIGE_SET=["201601","201262","200452","210052"];
+function pinBar(L){
+  const v=pinsNow();const n=v.must.length+v.never.length;
+  return `<div class="pinbar"><p class="hint">スキル名をタップすると、このレース・脚質で「必ず取る」「取らない」を指定できます。必ず取るスキルは、獲得バ身に関係なく最優先で構成に入ります。${n?`（指定中：必ず取る${v.must.length}・取らない${v.never.length}）`:""}${L.pinMissing&&L.pinMissing.length?`<br>必ず取るに指定したが、このプランでは取れないもの：${L.pinMissing.map(esc).join("・")}`:""}</p>
+    <div class="btnrow">${st.style==="逃げ"?`<button type="button" class="btn sm" data-pinset="nige">逃げの定番（地固め・危険回避・ポジションセンス・アオハル点火・賢）を必ず取る</button>`:""}${n?`<button type="button" class="btn sm" data-pinset="clear">指定をすべて外す</button>`:""}</div></div>`;
+}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-pinset]");if(!b)return;
+  st.pins=st.pins||{};
+  if(b.dataset.pinset==="nige"){const v=pinsNow();for(const id of NIGE_SET){v.never=v.never.filter(x=>x!==id);if(!v.must.includes(id))v.must.push(id)}st.pins[pinKey()]=v;toast("逃げの定番を「必ず取る」にしました")}
+  else{delete st.pins[pinKey()];toast("指定をすべて外しました")}
+  persist();if(lastPlan&&!planDirty&&!computing)renderSheet(lastPlan)});
 function tierByLoadout(d,L){
   const inL=new Map(L.picked.map(k=>[k.x,k]));
   const ranked=L.picked.filter(k=>!k.forced).sort((a,b)=>(b.gain||0)-(a.gain||0));
@@ -1182,6 +1203,7 @@ function tierByLoadout(d,L){
   for(const x of d.reps){
     const k=inL.get(x);
     if(k&&(k.forced||x.conserveNeed))x.tier="must";
+    else if(!k&&pinOf(x.s.id)==="never")x.tier="none";
     else if(k)x.tier=must.has(x)?"must":"rec";
     else x.tier=(x.tierV??x.expAdj)>=TH.opt?"opt":"none";
     x.ldGain=k&&k.gain!=null?k.gain:null;
@@ -1199,8 +1221,17 @@ function buildLoadout(p,d,m,ownOnly){
   const picked=[];
   // 持久力温存の回避に必要な回復は先に入れる
   for(const x of d.reps.filter(x=>x.conserveNeed)){const c=skillCost(x)??0;plans=plans.concat(UmaSim.planSkill(ctx,x.s,.5));used+=c;picked.push({x,cost:c,gain:null,forced:true})}
+  // 自分で「必ず取る」に指定したスキル（同じ系統の代表を入れる）。「取らない」に指定したものは候補から外す
+  const pin=pinsNow(),gk=s=>s.groupId||s.id;
+  const mustG=new Set(pin.must.map(id=>SK[id]).filter(Boolean).map(gk)),neverG=new Set(pin.never.map(id=>SK[id]).filter(Boolean).map(gk));
+  const pinMissing=[];
+  for(const id of pin.must){const k=SK[id];if(!k)continue;const x=d.reps.find(r=>gk(r.s)===gk(k));
+    if(!x||!x.route||picked.some(q=>q.x===x)){if(!x||!x.route)pinMissing.push(k.name);continue}
+    if(ownOnly&&x.route.kind!=="own")continue;
+    const base0=UmaSim.run(ctx,plans);const g=valOf(x,plans,base0);const c=skillCost(x)??0;
+    plans=plans.concat(UmaSim.planSkill(ctx,x.s,.5));used+=c;picked.push({x,cost:c,gain:g,forced:true,pinned:true})}
   let baseRun=UmaSim.run(ctx,plans),ver=0;
-  const cand=d.reps.filter(x=>x.r.ok&&x.route&&(!ownOnly||x.route.kind==="own")&&!x.conserveNeed&&x.exp>0.02&&!(S.lotteryOut&&isLottery(x.s))).map(x=>({x,cost:skillCost(x)??0,ub:x.exp,ver:-1}));
+  const cand=d.reps.filter(x=>x.r.ok&&x.route&&(!ownOnly||x.route.kind==="own")&&!x.conserveNeed&&!picked.some(q=>q.x===x)&&!neverG.has(gk(x.s))&&x.exp>0.02&&!(S.lotteryOut&&isLottery(x.s))).map(x=>({x,cost:skillCost(x)??0,ub:x.exp,ver:-1}));
   const score=e=>e.cost>0?e.ub/e.cost:e.ub*1e6;
   // 2段階で選ぶ：まず確実に取れる経路（デッキ・イベント・固有・初期/覚醒・シナリオ）で予算を使い、残りのSPで白因子のスキルを足す
   for(const phase of ["own","inh"]){
@@ -1216,7 +1247,7 @@ function buildLoadout(p,d,m,ownOnly){
   }
   }
   const total=picked.reduce((t,k)=>t+(k.gain||0),0);
-  return{picked,used,budget,total,inhN:m.sel.length,inhCost};
+  return{picked,used,budget,total,inhN:m.sel.length,inhCost,pinMissing};
 }
 
 function spText(x){
@@ -1244,6 +1275,7 @@ function skRow(x){
   meta.push(x.r.random?"ランダム位置":"確定位置");
   if(x.r.random&&x.r.ok)meta.push(`${x.r.min.toFixed(2)}〜${x.r.max.toFixed(2)}バ身`);
   const sp=spText(x);if(sp)meta.push(sp);
+  {const pm=pinOf(x.s.id);if(pm==="must")meta.push("必ず取る（自分で指定）");if(pm==="never")meta.push("取らない（自分で指定）")}
   if(x.evoNote)meta.push(x.evoNote);
   if(x.charaEv)meta.push("育成イベントでも取れる可能性あり："+x.charaEv.map(e=>`「${e.title}」${e.choice?"の「"+e.choice+"」":""}で${e.name} Lv${e.lv}`).join("／"));
   if(x.conserveNeed)meta.push(x.costNeed?"持久力温存の回避に必要（体力を使うスキルの分）":"持久力温存の回避に必要");
@@ -1485,11 +1517,13 @@ function showSkillPop(sid){
   const pop=document.createElement("div");pop.className="skpop";pop.setAttribute("role","dialog");pop.setAttribute("aria-label",s.name);
   pop.innerHTML=`<div class="skpop-h"><b>${esc(s.name)}</b><span class="rtag ${rcls(s)==="evo"?"evo":s.rarity==="gold"?"gold":""}">${kind}</span><button type="button" class="skpop-x" aria-label="閉じる">✕</button></div>
     <p>${esc(s.desc||"（説明なし）")}</p>
+    ${s.rarity==="unique"?"":`<div class="pinrow"><span class="hint">このレース・脚質で：</span>${[["must","必ず取る"],["never","取らない"],["","指定なし"]].map(([k,l])=>`<button type="button" class="btn sm${(pinOf(sid)||"")===k?" on":""}" data-pin="${k}">${l}</button>`).join("")}</div>`}
     <p class="hint">${s.sp?`基本SP ${s.sp}pt`:rcls(s)==="evo"?"SPは元のスキルと同じ":s.rarity==="unique"?"固有スキル（SP不要）":""}${base?`・元：${esc(base.name)}`:""}${row&&row.r&&row.r.ok?`・このプランでの期待値 ${(row.expAdj??row.exp).toFixed(2)}バ身`:""}</p>`;
   document.body.appendChild(pop);
   const close=()=>{pop.remove();document.removeEventListener("pointerdown",outside,true)};
   const outside=ev=>{if(!pop.contains(ev.target))close()};
   pop.querySelector(".skpop-x").addEventListener("click",close);
+  pop.querySelectorAll("[data-pin]").forEach(b=>b.addEventListener("click",()=>{setPin(sid,b.dataset.pin);close();toast(b.dataset.pin==="must"?"「必ず取る」にしました":b.dataset.pin==="never"?"「取らない」にしました":"指定を外しました")}));
   setTimeout(()=>document.addEventListener("pointerdown",outside,true));
 }
 window.__verify={evalDeck,last:()=>lastExport,plan:()=>lastPlan,deck:()=>st.deck.map(id=>SP[id]).filter(Boolean)};
@@ -1528,7 +1562,8 @@ function renderSheet(p){
   const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。まず確実に取れる経路（デッキ・イベント・固有・初期/覚醒・シナリオ）のスキルで予算を使い、残ったSPで白因子で継承するスキルを足しています。○→◎の系統は、○が取れれば育成中に◎も取れるため、◎まで取る前提です。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
     <div class="kpis"><div class="kpi"><span class="k">使うSP</span><span class="v">${L.used}<small> / ${L.budget}pt</small></span><span class="d">${L.inhN?`継承固有${L.inhN}個（1個${L.inhCost}pt）を含む。`:""}残り${Math.max(0,L.budget-L.used)}pt</span></div>
     <div class="kpi"><span class="k">構成全体の期待バ身</span><span class="v">${L.total.toFixed(2)}<small>バ身</small></span><span class="d">選んだ継承固有・温存回避の回復の分は含まない</span></div></div>
-    <ol class="ulist lout">${L.picked.map(k=>`<li class="l-${rcls(k.x.s)}" data-sid="${k.x.s.id}"><span><b>${esc(k.x.s.name)}</b>${rcls(k.x.s)==="gold"?'<span class="rtag gold">金</span>':rcls(k.x.s)==="evo"?'<span class="rtag evo">進化</span>':""}<small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
+    ${pinBar(L)}
+    <ol class="ulist lout">${L.picked.map(k=>`<li class="l-${rcls(k.x.s)}" data-sid="${k.x.s.id}"><span><b>${esc(k.x.s.name)}</b>${rcls(k.x.s)==="gold"?'<span class="rtag gold">金</span>':rcls(k.x.s)==="evo"?'<span class="rtag evo">進化</span>':""}<small>${esc(k.x.route.label)}${k.pinned?"・必ず取る（自分で指定）":k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
   lastExport={p,d,m,L,connList};lastM=m;
   const w=m.withOwn,ok=m.deficit<=0,okNo=m.deficitNoHeal<=0;
   const stState=okNo?'<span class="state st-ok">回復なしで起きない</span>':ok?'<span class="state st-warn">回復スキルで回避できる</span>':'<span class="state st-ng">起きる</span>';
@@ -1687,7 +1722,7 @@ function renderSaved(){const list=LS.get("umaplan2.saved",[]);
 const b64u={enc:u8=>{let s="";for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode(...u8.subarray(i,i+0x8000));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")},
   dec:t=>{const s=atob(t.replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(s,c=>c.charCodeAt(0))}};
 async function packPlan(){
-  const keep=["ev","courseId","scenario","ground","weather","season","charaId","style","apt","stats","mood","spBudget","deck","inherit","evChoice","field","debuff","farmDeck","team"];
+  const keep=["ev","courseId","scenario","ground","weather","season","charaId","style","apt","stats","mood","spBudget","deck","inherit","evChoice","field","debuff","farmDeck","team","pins"];
   const o={v:1,st:Object.fromEntries(keep.map(k=>[k,st[k]]))};
   const raw=new TextEncoder().encode(JSON.stringify(o));
   if(typeof CompressionStream==="function"){
