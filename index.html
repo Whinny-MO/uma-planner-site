@@ -271,6 +271,9 @@ details.sub>.tier{margin-top:6px}
 .facrow .chip .cev{cursor:pointer;font-style:normal;font-size:9.5px;font-weight:800;color:#fff;background:#8a6fd1;border-radius:999px;padding:0 5px;margin-left:4px;vertical-align:1px}
 .pdb{margin-top:10px;border:2px dashed var(--line);border-radius:12px;padding:6px 10px}
 .pdb summary{font-weight:800;cursor:pointer;padding:4px 0}
+.pdb-type{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:13px;margin-top:4px}
+.pdb-type label{display:inline-flex !important;align-items:center;gap:4px;width:auto !important;margin:0;font-weight:700}
+.pdb-type input{width:auto !important;margin:0}
 .pdb-list{display:flex;flex-wrap:wrap;gap:4px 12px;margin:6px 0;font-size:13px}
 .pdb-list label{display:inline-flex !important;align-items:center;gap:4px;white-space:nowrap;width:auto !important;margin:0;padding:2px 0;font-weight:700}
 .pdb-list input{width:auto !important;margin:0;flex:none}
@@ -1012,7 +1015,9 @@ const covLine=f=>f?`<p class="hint covline">因子周回デッキのカバー：
 // pure-db（uma.pure-db.com）のフレンド検索URL：検索条件のJSONをBase64にして searchInfo に入れる形式。
 // 白因子（共通）は commonSkillFactors に系統番号（groupId、プランナーのスキルデータと同じ番号）で指定する
 const PUREDB_BASE={gameServerCode:"japan",userIds:[],partnerCardIds:[],supportCardId:0,supportCardLimitBreak:4,excludeCardIds:[],excludeCardSearchType:0,blueFactors:[],redFactors:[],greenFactors:[],commonSkillFactors:[],raceFactors:[],scenarioFactors:[],otherFactors:[],whiteFactorCountConditions:[],winCount:0,g1WinCount:0,searchCount:100,excludeFullFollowerUser:true,excludeArchivedChara:true,excludeInheritanceOnlyChara:false};
-function pureDbUrl(gids){const q=Object.assign({},PUREDB_BASE,{commonSkillFactors:gids.map(g=>({groupId:g,count:1,searchType:0,enabled:true}))});
+// searchType：0＝全体、1＝代表、2＝継承元（ウマ娘DBの検索画面の切り替えと同じ番号）
+const PDB_TYPES=[["0","全体"],["1","代表"],["2","継承元"]];
+function pureDbUrl(gids){const t=+(st.pdbType||0);const q=Object.assign({},PUREDB_BASE,{commonSkillFactors:gids.map(g=>({groupId:g,count:1,searchType:t,enabled:true}))});
   return "https://uma.pure-db.com/ja-jp/search?searchInfo="+encodeURIComponent(btoa(JSON.stringify(q)))}
 function pureDbBox(fac){
   const list=[...fac.top,...fac.high].filter(x=>x.s.groupId);
@@ -1023,10 +1028,14 @@ function pureDbBox(fac){
   const def=new Set(ok.filter(x=>fac.top.includes(x)).slice(0,3).map(x=>x.s.groupId));
   return `<details class="pdb"><summary>ウマ娘DBでレンタルの因子を探す</summary>
     <p class="hint">チェックした因子を白因子（共通）に入れた状態で、ウマ娘DB（uma.pure-db.com）のフレンド検索を開きます。すべてを満たす人だけが出るので、2〜3個から試すのがおすすめです。</p>
+    <div class="pdb-type"><span class="hint">因子の場所：</span>${PDB_TYPES.map(([v,l])=>`<label><input type="radio" name="pdbType" value="${v}"${String(st.pdbType||0)===v?" checked":""}> ${l}</label>`).join("")}</div>
     <div class="pdb-list">${ok.map(x=>`<label><input type="checkbox" data-pdb="${x.s.groupId}"${def.has(x.s.groupId)?" checked":""}> ${esc(nm(x))}</label>`).join("")}</div>
     <div class="btnrow"><a class="btn primary grow" id="pdbGo" href="${pureDbUrl([...def])}" target="_blank" rel="noopener">ウマ娘DBで検索する（${def.size}件）</a></div></details>`;
 }
-document.addEventListener("change",e=>{if(!e.target.matches||!e.target.matches("[data-pdb]"))return;const box=e.target.closest(".pdb");
+document.addEventListener("change",e=>{if(!e.target.matches)return;
+  if(e.target.matches('input[name="pdbType"]')){st.pdbType=+e.target.value;persist()}
+  else if(!e.target.matches("[data-pdb]"))return;
+  const box=e.target.closest(".pdb");if(!box)return;
   const g=[...box.querySelectorAll("[data-pdb]:checked")].map(i=>+i.dataset.pdb);const a=box.querySelector("#pdbGo");a.href=pureDbUrl(g);a.textContent=`ウマ娘DBで検索する（${g.length}件）`});
 function farmCover(fac,ids){
   const cards=(ids||[]).map(id=>SP[id]).filter(Boolean);
