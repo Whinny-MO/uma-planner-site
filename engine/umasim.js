@@ -365,6 +365,18 @@
         if (!region.length) return null;
       }
     }
+    // 「序盤／中盤／終盤以降にスキルを〇回発動すると」：その区間のどこかで発動する扱い
+    const ACT_PHASE = { activate_count_start: [0, 0], activate_count_middle: [1, 1], activate_count_end_after: [2, 3], activate_count_later_half: null };
+    for (const k of Object.keys(ACT_PHASE)) if (k in group) {
+      const ph = ACT_PHASE[k];
+      region = intersect(region, norm(ph ? [[phaseIv[ph[0]][0], phaseIv[Math.min(ph[1], phaseIv.length - 1)][1]]] : [[D / 2, D]]));
+      random = true; if (!region.length) return null;
+    }
+    // 追い比べ（compete_fight_count）は最終直線で起きるので、最終直線のどこかで発動する扱い
+    if ("compete_fight_count" in group) { region = intersect(region, norm([ctx.lastStraight])); random = true; if (!region.length) return null; }
+    // 1人走行では判定できない条件（進路変更・追い抜き・残り体力など）が付いていて、発動位置が決まっていないものは、
+    // 範囲の先頭（レース開始直後など）で発動する扱いにすると強く出すぎるので、範囲のどこかでランダムに発動する扱いにする
+    if (unknown.length && !random && !ft && !dep) random = true;
     return { region, random, unknown, prob, ft, posKeys, dep };
   }
 
