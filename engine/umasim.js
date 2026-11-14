@@ -225,6 +225,9 @@
         }
         else if (key === "finalCorner" && ctx.finalCorner) lim([[ctx.finalCorner[0], D]]);
         else if (key === "corner") lim(ctx.corners.map(([a, b]) => [a, b]));
+        // 最終コーナーがないコース（直線コース）：最終コーナー・その後が条件なら発動しない、最終コーナー以外なら制限なし
+        else if ((key === "finalCorner" || key === "finalCornerOver") && !ctx.finalCorner) return null;
+        else if (key === "notFinalCorner" && !ctx.finalCorner) { /* 制限なし */ }
         else unknown.push(key);
         if (!region.length) return null;
         continue;
@@ -377,6 +380,7 @@
       const rs = p.preconditions.map((g) => groupRegion(ctx, g)).filter(Boolean);
       return rs.length ? { ok: true, prob: Math.max(...rs.map((r) => r.prob ?? 1)) } : { ok: false };
     };
+    const exclusive = /効果が変わ|または|もしくは/.test(skill.desc || "");
     const ordered = pats.map((p) => {
       const pre = preOk(p);
       const regs = pre.ok ? (p.conditions && p.conditions.length ? p.conditions : [{}]).map((g) => groupRegion(ctx, g)).filter(Boolean) : [];
@@ -399,6 +403,8 @@
       const plan = { pos: r.ft ? Infinity : pos, ftFrac: r.ft ? (r.random ? frac : 0) : null, dur, passive: p.baseTime < 0, effects: (p.effects || []).filter(selfEff), random: r.random, unknown: r.unknown, prob: r.prob, posKeys: r.posKeys, alts: [], dep: !!r.dep };
       // 続けて発動する効果（dep）は、同じ種類の効果でも分岐ではなく上乗せなので別に積む
       if (!r.dep && seen.has(sig)) { const main = out.find((x) => x.sig === sig && !x.dep); if (main) main.alts.push(plan); continue; }
+      // 「〜だと効果が変わり」「または」と説明されるスキルは、効果の種類が違っても分岐（どれか1つだけ発動）
+      if (!r.dep && exclusive) { const main = out.find((x) => !x.dep); if (main) { main.alts.push(plan); continue; } }
       if (r.dep) { out.push(plan); continue; }
       seen.add(sig);
       plan.sig = sig;
