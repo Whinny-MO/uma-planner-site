@@ -1012,17 +1012,17 @@ const covLine=f=>f?`<p class="hint covline">因子周回デッキのカバー：
 // pure-db（uma.pure-db.com）のフレンド検索URL：検索条件のJSONをBase64にして searchInfo に入れる形式。
 // 白因子（共通）は commonSkillFactors に系統番号（groupId、プランナーのスキルデータと同じ番号）で指定する
 const PUREDB_BASE={gameServerCode:"japan",userIds:[],partnerCardIds:[],supportCardId:0,supportCardLimitBreak:4,excludeCardIds:[],excludeCardSearchType:0,blueFactors:[],redFactors:[],greenFactors:[],commonSkillFactors:[],raceFactors:[],scenarioFactors:[],otherFactors:[],whiteFactorCountConditions:[],winCount:0,g1WinCount:0,searchCount:100,excludeFullFollowerUser:true,excludeArchivedChara:true,excludeInheritanceOnlyChara:false};
-const isScenarioG=g=>g>=21000&&g<22000;
 function pureDbUrl(gids){const q=Object.assign({},PUREDB_BASE,{commonSkillFactors:gids.map(g=>({groupId:g,count:1,searchType:0,enabled:true}))});
   return "https://uma.pure-db.com/ja-jp/search?searchInfo="+encodeURIComponent(btoa(JSON.stringify(q)))}
 function pureDbBox(fac){
   const list=[...fac.top,...fac.high].filter(x=>x.s.groupId);
-  const ok=list.filter(x=>!isScenarioG(x.s.groupId)),sc=list.filter(x=>isScenarioG(x.s.groupId));
+  // レース中に発動するスキルの因子は、シナリオ由来のもの（レースの真髄など）も含めて、すべて白因子（共通）で探せる
+  const ok=list;
   if(!ok.length)return"";
   const nm=x=>x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name;
   const def=new Set(ok.filter(x=>fac.top.includes(x)).slice(0,3).map(x=>x.s.groupId));
   return `<details class="pdb"><summary>pure-dbでレンタルの因子を探す</summary>
-    <p class="hint">チェックした因子を白因子（共通）に入れた状態で、pure-db（uma.pure-db.com）のフレンド検索を開きます。すべてを満たす人だけが出るので、2〜3個から試すのがおすすめです。${sc.length?`シナリオ由来の因子（${sc.map(x=>esc(nm(x))).join("・")}）は検索サイトの別の欄なので、開いたあとに手で追加してください。`:""}</p>
+    <p class="hint">チェックした因子を白因子（共通）に入れた状態で、pure-db（uma.pure-db.com）のフレンド検索を開きます。すべてを満たす人だけが出るので、2〜3個から試すのがおすすめです。</p>
     <div class="pdb-list">${ok.map(x=>`<label><input type="checkbox" data-pdb="${x.s.groupId}"${def.has(x.s.groupId)?" checked":""}> ${esc(nm(x))}</label>`).join("")}</div>
     <div class="btnrow"><a class="btn primary grow" id="pdbGo" href="${pureDbUrl([...def])}" target="_blank" rel="noopener">pure-dbで検索する（${def.size}件）</a></div></details>`;
 }
