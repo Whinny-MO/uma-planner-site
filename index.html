@@ -163,6 +163,13 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .sh-b{padding:14px 16px 16px;display:grid;gap:16px}
 .ribbon{display:inline-block;justify-self:start;background:var(--pink);color:#fff;font-weight:800;font-size:13.5px;padding:3px 16px 3px 12px;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 50%,100% 100%,0 100%);border-radius:6px 0 0 6px}
 .kpis{display:grid;grid-template-columns:1fr;gap:10px}
+.skpop{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:60;max-width:560px;margin:0 auto;background:var(--card,#fff);border:2px solid var(--line);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px 12px;display:grid;gap:4px;font-size:13.5px;line-height:1.6;animation:skpopIn .15s ease-out}
+.skpop p{margin:0}
+.skpop-h{display:flex;align-items:center;gap:6px;min-width:0}
+.skpop-h b{font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.skpop-x{margin-left:auto;border:0;background:none;font:inherit;font-size:16px;color:var(--muted);cursor:pointer;padding:2px 6px}
+@keyframes skpopIn{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+[data-sid]{cursor:pointer}
 .tmem{display:grid;gap:8px}
 .tmem .mrow{display:grid;gap:6px;border:2px solid var(--line);border-radius:14px;padding:8px 10px;background:#fff}
 .tmem .mhead{display:flex;align-items:center;gap:8px;min-width:0}
@@ -233,7 +240,7 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .ulist li.l-evo{background:linear-gradient(90deg,var(--evo1),#fff4f3);border-radius:10px;box-shadow:inset 3px 0 0 var(--evo-b)}
 .ulist li.l-unique{background:linear-gradient(90deg,#fde8f2,#eef6ff);border-radius:10px;box-shadow:inset 3px 0 0 #f26aa0}
 .rtag{display:inline-block;font-size:10px;font-weight:800;border-radius:999px;padding:0 6px;margin-left:5px;vertical-align:1px}
-.rtag.gold{background:#f7cf52;color:#6b4a00}.rtag.evo{background:var(--evo-b);color:#fff}
+.rtag{background:#e9e4dc;color:#5a5249}.rtag.gold{background:#f7cf52;color:#6b4a00}.rtag.evo{background:var(--evo-b);color:#fff}
 .sk.r-unique{background:linear-gradient(#fff,#fff) padding-box,linear-gradient(90deg,#f26aa0,#a77fd9,#3b9bf0,#35b673) border-box;border-color:transparent}
 .ico{grid-row:1/span 2;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;box-shadow:inset 0 -3px 0 rgba(0,0,0,.15)}
 .ico svg{width:20px;height:20px}
@@ -984,7 +991,7 @@ function farmDeck(fac){
 
 // 因子周回デッキのカバー判定：因子化するスキルごとに、ヒント（トレーニング・イベント）で持っているカードの名前。○と◎は同じ系統として扱う
 function facRowHtml(label,cls,list,cap,fcov){
-  return `<div class="facrow"><span class="ftier ${cls}">${label}<small>${list.length}/${cap}</small></span><div class="chips">${list.length?list.map(x=>{const c=fcov&&fcov.who.get(x.s.id);return`<span class="chip${c?" cov":""}"${c?` title="${esc(c.join("・"))}"`:""}>${esc(x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name)} <b>${(x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj).toFixed(2)}</b>${c?`<i>${esc(c.join("・"))}</i>`:""}${x.charaEv?`<em class="cev" title="${esc(x.charaEv.map(e=>`「${e.title}」${e.choice?"の「"+e.choice+"」":""}で${e.name} Lv${e.lv}`).join("／"))}">イベ</em>`:""}</span>`}).join(""):'<span class="hint">なし</span>'}</div></div>`;
+  return `<div class="facrow"><span class="ftier ${cls}">${label}<small>${list.length}/${cap}</small></span><div class="chips">${list.length?list.map(x=>{const c=fcov&&fcov.who.get(x.s.id);return`<span class="chip${c?" cov":""}" data-sid="${x.s.id}"${c?` title="${esc(c.join("・"))}"`:""}>${esc(x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name)} <b>${(x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj).toFixed(2)}</b>${c?`<i>${esc(c.join("・"))}</i>`:""}${x.charaEv?`<em class="cev" title="${esc(x.charaEv.map(e=>`「${e.title}」${e.choice?"の「"+e.choice+"」":""}で${e.name} Lv${e.lv}`).join("／"))}">イベ</em>`:""}</span>`}).join(""):'<span class="hint">なし</span>'}</div></div>`;
 }
 const covLine=f=>f?`<p class="hint covline">因子周回デッキのカバー：超優先 ${f.tc.top.hit}/${f.tc.top.all}・優先 ${f.tc.high.hit}/${f.tc.high.all}・通常 ${f.tc.norm.hit}/${f.tc.norm.all}（緑の背景がカバー済み）${f.miss.length?`<br>カバーできていない超優先・優先：${f.miss.map(x=>esc(x.s.name)).join("・")}`:""}</p>`:"";
 function farmCover(fac,ids){
@@ -1162,7 +1169,7 @@ function staRecheck(p,d,m,L,noAdd){
 function scEvoHtml(se){
   const c=se.cands;
   return `<p class="hint">このシナリオでは、元のスキルを取ったうえで条件を満たすと、シナリオ専用の進化スキルに進化できます（1回の育成で2つまで）。元のスキルが取れる候補を、進化しなかった場合からの伸び（期待バ身）が大きい順に並べ、上位2つをおすすめにしています。進化条件は満たせる前提です。おすすめの2つは、スキル判定・おすすめ構成にも進化後の効果で入っています。</p>
-  ${c.length?`<ul class="ulist">${c.map(o=>`<li class="${o.chosen?"l-evo":""}"><span><b>${esc(o.x.s.name)}</b>${o.chosen?'<span class="rtag evo">おすすめ</span>':""}<small style="display:block;color:var(--muted)">元：${esc(SK[o.x.route.evo.baseId]?.name||"")}（${esc(o.x.route.baseRoute.label)}）${o.alt?`・進化しない場合は${esc(o.alt.s.name)} ${o.alt.expAdj.toFixed(2)}バ身`:""}</small></span><span style="white-space:nowrap">+${o.gain.toFixed(2)}バ身</span></li>`).join("")}</ul>`:'<p class="hint">元のスキルを取れる候補がありません。</p>'}
+  ${c.length?`<ul class="ulist">${c.map(o=>`<li class="${o.chosen?"l-evo":""}" data-sid="${o.x.s.id}"><span><b>${esc(o.x.s.name)}</b>${o.chosen?'<span class="rtag evo">おすすめ</span>':""}<small style="display:block;color:var(--muted)">元：${esc(SK[o.x.route.evo.baseId]?.name||"")}（${esc(o.x.route.baseRoute.label)}）${o.alt?`・進化しない場合は${esc(o.alt.s.name)} ${o.alt.expAdj.toFixed(2)}バ身`:""}</small></span><span style="white-space:nowrap">+${o.gain.toFixed(2)}バ身</span></li>`).join("")}</ul>`:'<p class="hint">元のスキルを取れる候補がありません。</p>'}
   ${se.missing.length?`<p class="hint">元のスキルが手持ちの経路（デッキ・固有・初期/覚醒・イベント）で取れないもの：${se.missing.map(e=>`${esc(e.name)}（元：${esc(e.base)}）`).join("・")}</p>`:""}
   ${se.dead&&se.dead.length?`<p class="hint">このレースの条件では発動しないもの：${se.dead.map(esc).join("・")}</p>`:""}
   <p class="hint">出典：<a href="${esc(se.url||"")}" target="_blank" rel="noopener">ゲームエイト</a></p>`;
@@ -1257,7 +1264,7 @@ function skRow(x){
   const route=x.route||{label:"デッキ外",kind:"no"};
   const cs=x.conn?(x.conn.rate>=0.99?" conn-sure":" conn-maybe"):"";
   const cl=x.conn?(x.conn.rate>=0.99?"終盤接続 確定":`接続 約${Math.round(x.conn.rate*100)}%`):"";
-  return `<div class="sk r-${rcls(s)}${cs}"><span class="ico i-${s.effect}">${ICONS[s.effect]||ICONS.other}</span>
+  return `<div class="sk r-${rcls(s)}${cs}" data-sid="${s.id}"><span class="ico i-${s.effect}">${ICONS[s.effect]||ICONS.other}</span>
     <div class="nm"${cl?` data-conn="${cl}"`:""}>${esc(s.name)}</div><div class="sc">${(x.expAdj??x.exp).toFixed(2)}<small>バ身</small></div>
     <div class="ds"><span>${meta.map(esc).join("・")}</span><span class="src src-${route.kind}">${esc(route.label)}</span></div></div>`}
 
@@ -1348,7 +1355,7 @@ function teamHtml(res){
   const tag=c=>c?`<span class="tg ${c.t}">${c.t==="top"?"超優先":c.t==="high"?"優先":"通常"}</span>`:"—";
   const head=`<tr><th>因子</th>${res.map((r,i)=>`<th>${i+1}人目<br>${esc(r.c.name)}<br>${esc(r.style)}</th>`).join("")}</tr>`;
   const body=grp.map(([lab,f])=>{const rs=rows.filter(f).sort((a,b)=>b.score-a.score);if(!rs.length)return"";
-    return`<tr class="sec"><td colspan="${n+1}">${lab}（${rs.length}）</td></tr>`+rs.map(r=>`<tr><td>${esc(r.name)}${r.heal?' <span class="hint">温存回避</span>':""}${r.covered?' <span class="covm">周回◯</span>':""}</td>${r.cells.map(c=>`<td>${tag(c)}</td>`).join("")}</tr>`).join("")}).join("");
+    return`<tr class="sec"><td colspan="${n+1}">${lab}（${rs.length}）</td></tr>`+rs.map(r=>`<tr><td data-sid="${r.cells.find(Boolean).id}">${esc(r.name)}${r.heal?' <span class="hint">温存回避</span>':""}${r.covered?' <span class="covm">周回◯</span>':""}</td>${r.cells.map(c=>`<td>${tag(c)}</td>`).join("")}</tr>`).join("")}).join("");
   const sta=r=>r.deficit<=0?(r.deficitNoHeal<=0?"回復なしで起きない":"回復で回避"):"起きる";
   const sum=res.map((r,i)=>`<li><span><b>${i+1}人目 ${esc(r.c.title)}${esc(r.c.name)}（${esc(r.style)}）</b><small style="display:block;color:var(--muted)">加速：${r.accelOk?"足りる":"足りない"}・持久力温存：${sta(r)}${r.inh.length?"・継承固有：「"+r.inh.map(esc).join("」「")+"」":""}${r.dropped.length?"・同じキャラのため外したサポカ："+r.dropped.map(cd=>esc(cd.title+cd.name)).join("、"):""}</small></span></li>`).join("");
   return`<div class="card"><div class="card-h"><span class="mk"></span><h2>必要な因子の比較</h2></div><div class="card-b">
@@ -1432,7 +1439,7 @@ function verifyHtml(A,B,cur,cand,slot){
   const row=(name,a,b)=>`<span>${name}</span><span class="r">${a}</span><span class="r">${b}</span>`;
   const facN=E=>E.m.fac.top.length+E.m.fac.high.length;
   const healInh=E=>E.d.reps.filter(x=>x.conserveNeed&&x.route&&x.route.kind==="inh").length;
-  const li=(o,x,extra)=>`<li><span><b>${esc(x.s.name)}</b>${gold(x.s)}${tierTag(x)}<small style="display:block;color:var(--muted)">${extra}</small></span><span>${val(x).toFixed(2)}バ身</span></li>`;
+  const li=(o,x,extra)=>`<li data-sid="${x.s.id}"><span><b>${esc(x.s.name)}</b>${gold(x.s)}${tierTag(x)}<small style="display:block;color:var(--muted)">${extra}</small></span><span>${val(x).toFixed(2)}バ身</span></li>`;
   const lostHtml=lostS.length?`<ul class="ulist">${lostS.map(o=>li(o,o.x,o.b?(o.b.s.id===o.x.s.id?"白因子で補える（追加で因子化が必要）":`この金は取れなくなる。下位の${esc(o.b.s.name)}なら白因子で補える（追加で因子化が必要・${val(o.b).toFixed(2)}バ身）`):o.x.s.rarity==="gold"?"取れなくなる（金は因子で継承できない）":"取れなくなる")).join("")}</ul>`:'<p class="hint">なし</p>';
   const gainHtml=gainS.length?`<ul class="ulist">${gainS.map(o=>li(o,o.y,esc(o.y.route.label))).join("")}</ul>`:'<p class="hint">なし</p>';
   const chg=(list,dir)=>list.length?`<ul class="ulist">${list.map(o=>`<li><span><b>${esc(o.x.s.name)} → ${esc(o.y.s.name)}</b><small style="display:block;color:var(--muted)">${dir}</small></span><span>${val(o.x).toFixed(2)} → ${val(o.y).toFixed(2)}</span></li>`).join("")}</ul>`:"";
@@ -1460,8 +1467,31 @@ function verifyHtml(A,B,cur,cand,slot){
   </div></div>`;
 }
 document.getElementById("vRun").addEventListener("click",runVerify);
-// 「イベ」の印をタップしたら、イベント名と選択肢を表示（スマホでは title が出ないため）
-document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest(".cev");if(t)toast(t.title)});
+// 「イベ」の印をタップしたら、イベント名と選択肢を表示（スマホでは title が出ないため）。
+// スキル名（data-sid の付いた要素）をタップしたら、画面下にスキルの効果を小さく表示する
+document.addEventListener("click",e=>{
+  if(!e.target.closest)return;
+  const t=e.target.closest(".cev");if(t){toast(t.title);return}
+  if(e.target.closest("button,a,input,select,label,summary,.skpop"))return;
+  const el=e.target.closest("[data-sid]");if(!el)return;
+  showSkillPop(el.dataset.sid);
+});
+function showSkillPop(sid){
+  const s=SK[sid];if(!s)return;
+  document.querySelectorAll(".skpop").forEach(x=>x.remove());
+  const row=lastPlan&&lastPlan.rows.find(x=>x.s.id===sid);
+  const kind=rcls(s)==="evo"?"進化スキル":s.rarity==="gold"?"金スキル":s.rarity==="unique"?"固有スキル":s.rarity==="inherited"?"継承固有":"白スキル";
+  const base=row&&row.route&&row.route.evo?SK[row.route.evo.baseId]:null;
+  const pop=document.createElement("div");pop.className="skpop";pop.setAttribute("role","dialog");pop.setAttribute("aria-label",s.name);
+  pop.innerHTML=`<div class="skpop-h"><b>${esc(s.name)}</b><span class="rtag ${rcls(s)==="evo"?"evo":s.rarity==="gold"?"gold":""}">${kind}</span><button type="button" class="skpop-x" aria-label="閉じる">✕</button></div>
+    <p>${esc(s.desc||"（説明なし）")}</p>
+    <p class="hint">${s.sp?`基本SP ${s.sp}pt`:rcls(s)==="evo"?"SPは元のスキルと同じ":s.rarity==="unique"?"固有スキル（SP不要）":""}${base?`・元：${esc(base.name)}`:""}${row&&row.r&&row.r.ok?`・このプランでの期待値 ${(row.expAdj??row.exp).toFixed(2)}バ身`:""}</p>`;
+  document.body.appendChild(pop);
+  const close=()=>{pop.remove();document.removeEventListener("pointerdown",outside,true)};
+  const outside=ev=>{if(!pop.contains(ev.target))close()};
+  pop.querySelector(".skpop-x").addEventListener("click",close);
+  setTimeout(()=>document.addEventListener("pointerdown",outside,true));
+}
 window.__verify={evalDeck,last:()=>lastExport,plan:()=>lastPlan,deck:()=>st.deck.map(id=>SP[id]).filter(Boolean)};
 
 let computing=false;
@@ -1498,7 +1528,7 @@ function renderSheet(p){
   const loadHtml=`<p class="hint">使えるSP ${L.budget}ptの中で、獲得バ身が大きくなるスキルを1個ずつ選んだ構成です。まず確実に取れる経路（デッキ・イベント・固有・初期/覚醒・シナリオ）のスキルで予算を使い、残ったSPで白因子で継承するスキルを足しています。○→◎の系統は、○が取れれば育成中に◎も取れるため、◎まで取る前提です。2個目以降は、それまでに選んだスキルと合わせて走ったときに増える分（追加の期待バ身）で評価するので、同じ区間で効果が重なるスキルは低めに出ます。必要SPはヒントLvの想定（設定タブ）で割り引いた見積もりです。</p>
     <div class="kpis"><div class="kpi"><span class="k">使うSP</span><span class="v">${L.used}<small> / ${L.budget}pt</small></span><span class="d">${L.inhN?`継承固有${L.inhN}個（1個${L.inhCost}pt）を含む。`:""}残り${Math.max(0,L.budget-L.used)}pt</span></div>
     <div class="kpi"><span class="k">構成全体の期待バ身</span><span class="v">${L.total.toFixed(2)}<small>バ身</small></span><span class="d">選んだ継承固有・温存回避の回復の分は含まない</span></div></div>
-    <ol class="ulist lout">${L.picked.map(k=>`<li class="l-${rcls(k.x.s)}"><span><b>${esc(k.x.s.name)}</b>${rcls(k.x.s)==="gold"?'<span class="rtag gold">金</span>':rcls(k.x.s)==="evo"?'<span class="rtag evo">進化</span>':""}<small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
+    <ol class="ulist lout">${L.picked.map(k=>`<li class="l-${rcls(k.x.s)}" data-sid="${k.x.s.id}"><span><b>${esc(k.x.s.name)}</b>${rcls(k.x.s)==="gold"?'<span class="rtag gold">金</span>':rcls(k.x.s)==="evo"?'<span class="rtag evo">進化</span>':""}<small>${esc(k.x.route.label)}${k.forced?"・持久力温存の回避に必要":""}</small></span><span>${k.cost}pt・${k.gain==null?"必須":"+"+k.gain.toFixed(2)+"バ身"}</span></li>`).join("")||'<li>予算内で選べるスキルがありません</li>'}</ol>`;
   lastExport={p,d,m,L,connList};lastM=m;
   const w=m.withOwn,ok=m.deficit<=0,okNo=m.deficitNoHeal<=0;
   const stState=okNo?'<span class="state st-ok">回復なしで起きない</span>':ok?'<span class="state st-warn">回復スキルで回避できる</span>':'<span class="state st-ng">起きる</span>';
