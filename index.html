@@ -425,7 +425,7 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
 
   <section class="panel" id="p-farm" hidden>
     <div class="card"><div class="card-h"><span class="mk"></span><h2>因子周回デッキ</h2></div><div class="card-b">
-      <p class="hint">実際に因子周回で使うデッキを設定すると、プランの「因子化するスキル」のうち、このデッキのカードがヒント（トレーニング・イベント）で持っているスキルを強調表示します。○と◎は同じ系統として扱います。ヒントが出る確率は考慮していません。1〜5枚目のカードを選ぶときは、ほかの枠で拾えないヒントを多く足せるカードを「おすすめ」として先頭に並べます（プラン作成後）。「取らない」に指定したスキルは、因子化の候補・おすすめの対象から外れます。</p>
+      <p class="hint">実際に因子周回で使うデッキを設定すると、プランの「因子化するスキル」のうち、このデッキのカードがヒント（トレーニング・イベント）で持っているスキルを強調表示します。○と◎は同じ系統として扱います。ヒントが出る確率は考慮していません。カードを選ぶとき（フレンド枠も含む）は、ほかの枠で拾えないヒントを多く足せるカードを「おすすめ」として先頭に並べます（プラン作成後）。「取らない」に指定したスキルは、因子化の候補・おすすめの対象から外れます。</p>
       <div class="deck" id="farmSlots"></div>
       <div class="btnrow"><button class="btn grow" type="button" id="farmFromPlan">デッキ案をそのまま入れる</button><button class="btn grow" type="button" id="farmClear">全部外す</button></div>
     </div></div>
@@ -1051,7 +1051,7 @@ document.addEventListener("change",e=>{if(!e.target.matches)return;
   else if(!e.target.matches("[data-pdb]"))return;
   const box=e.target.closest(".pdb");if(!box)return;
   const g=[...box.querySelectorAll("[data-pdb]:checked")].map(i=>+i.dataset.pdb);const a=box.querySelector("#pdbGo");a.href=pureDbUrl(g);a.textContent=`ウマ娘DBで検索する（${g.length}件）`});
-// 因子周回デッキの枠i（1〜5枚目）に入れるおすすめ：ほかの枠ですでに拾えるヒントを除いて、因子化したいスキルのヒントを多く足せるカード（最大10枚）
+// 因子周回デッキの枠i（フレンド枠を含む1〜6枚目）に入れるおすすめ：ほかの枠ですでに拾えるヒントを除いて、因子化したいスキルのヒントを多く足せるカード（最大10枚）
 function farmRec(i){
   if(!lastM||!lastM.fac)return null;
   const fac=lastM.fac,grpOf=id=>{const k=SK[id];return k?(k.groupId||k.id):id};
@@ -1367,7 +1367,7 @@ function skRow(x){
 /* ---------- 5. 因子周回 ---------- */
 function renderFarm(){
   st.farmDeck=Array.isArray(st.farmDeck)?st.farmDeck.concat([null,null,null,null,null,null]).slice(0,6):[null,null,null,null,null,null];
-  renderDeckInto($("#farmSlots"),st.farmDeck,()=>{persist();renderFarm()},i=>i<5?farmRec(i):null);
+  renderDeckInto($("#farmSlots"),st.farmDeck,()=>{persist();renderFarm()},i=>farmRec(i));
   const out=$("#farmCov");
   if(planDirty||!lastPlan||!lastM){out.innerHTML=`<div class="card"><div class="card-b"><p class="hint">カバーの判定には、プランの「因子化するスキル」を使います。条件を変えたあとは、先にプランを作成してください。</p><div class="btnrow"><button class="btn primary grow" type="button" data-go2="plan">プランを作成</button></div></div></div>`;
     out.querySelector("[data-go2]").addEventListener("click",()=>setStep("plan"));return}
