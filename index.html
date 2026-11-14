@@ -1021,13 +1021,13 @@ function pureDbBox(fac){
   if(!ok.length)return"";
   const nm=x=>x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name;
   const def=new Set(ok.filter(x=>fac.top.includes(x)).slice(0,3).map(x=>x.s.groupId));
-  return `<details class="pdb"><summary>pure-dbでレンタルの因子を探す</summary>
-    <p class="hint">チェックした因子を白因子（共通）に入れた状態で、pure-db（uma.pure-db.com）のフレンド検索を開きます。すべてを満たす人だけが出るので、2〜3個から試すのがおすすめです。</p>
+  return `<details class="pdb"><summary>ウマ娘DBでレンタルの因子を探す</summary>
+    <p class="hint">チェックした因子を白因子（共通）に入れた状態で、ウマ娘DB（uma.pure-db.com）のフレンド検索を開きます。すべてを満たす人だけが出るので、2〜3個から試すのがおすすめです。</p>
     <div class="pdb-list">${ok.map(x=>`<label><input type="checkbox" data-pdb="${x.s.groupId}"${def.has(x.s.groupId)?" checked":""}> ${esc(nm(x))}</label>`).join("")}</div>
-    <div class="btnrow"><a class="btn primary grow" id="pdbGo" href="${pureDbUrl([...def])}" target="_blank" rel="noopener">pure-dbで検索する（${def.size}件）</a></div></details>`;
+    <div class="btnrow"><a class="btn primary grow" id="pdbGo" href="${pureDbUrl([...def])}" target="_blank" rel="noopener">ウマ娘DBで検索する（${def.size}件）</a></div></details>`;
 }
 document.addEventListener("change",e=>{if(!e.target.matches||!e.target.matches("[data-pdb]"))return;const box=e.target.closest(".pdb");
-  const g=[...box.querySelectorAll("[data-pdb]:checked")].map(i=>+i.dataset.pdb);const a=box.querySelector("#pdbGo");a.href=pureDbUrl(g);a.textContent=`pure-dbで検索する（${g.length}件）`});
+  const g=[...box.querySelectorAll("[data-pdb]:checked")].map(i=>+i.dataset.pdb);const a=box.querySelector("#pdbGo");a.href=pureDbUrl(g);a.textContent=`ウマ娘DBで検索する（${g.length}件）`});
 function farmCover(fac,ids){
   const cards=(ids||[]).map(id=>SP[id]).filter(Boolean);
   if(!cards.length||!fac)return null;
