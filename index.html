@@ -895,6 +895,14 @@ function derive(p){
     // 1人走行のバ身で差が出なくても（同等・回復のみの上乗せ）進化後を採用する
     {const ev=ok.find(x=>x.route.evo&&!x.route.evo.scenario&&x!==ok[0]&&x.expAdj>=ok[0].expAdj-0.01);
      if(ev&&!(ok[0].route.evo&&!ok[0].route.evo.scenario)){ok.splice(ok.indexOf(ev),1);ok.unshift(ev)}}
+    // 進化前を採用したとき、進化先が発動しない・伸びが小さい理由を残す（進化は育成中に選べるので「進化させない」判断になる）
+    ok[0].evoNote=null;
+    if(!(ok[0].route.evo&&!ok[0].route.evo.scenario)){
+      // 発動しない進化先は行そのものがない（計算対象から外れている）ので、育成ウマ娘の進化の一覧から探す
+      const evs=[...evoMap.values()].filter(u=>u.baseId===ok[0].s.id&&SK[u.skillId]);
+      if(evs.length)ok[0].evoNote=evs.map(u=>{const e=list.find(x=>x.s.id===u.skillId);const nm=SK[u.skillId].name;
+        return !e||!e.r.ok?`進化先の${nm}は、このレース条件では発動しないため、進化させないほうが良い`:`進化先の${nm}は、このレース条件では伸びが小さいため、進化させないほうが良い（進化後 ${e.expAdj.toFixed(2)}バ身／進化前 ${ok[0].expAdj.toFixed(2)}バ身）`}).join("／");
+    }
     if(ok[0].route.scEvo){
       // シナリオ進化の候補：進化しなかった場合の代わり（同じ系統でいちばん良い段階）との差を伸びとする
       const alt=ok.find(x=>!x.route.scEvo)||null;
@@ -1197,6 +1205,7 @@ function skRow(x){
   meta.push(x.r.random?"ランダム位置":"確定位置");
   if(x.r.random&&x.r.ok)meta.push(`${x.r.min.toFixed(2)}〜${x.r.max.toFixed(2)}バ身`);
   const sp=spText(x);if(sp)meta.push(sp);
+  if(x.evoNote)meta.push(x.evoNote);
   if(x.conserveNeed)meta.push(x.costNeed?"持久力温存の回避に必要（体力を使うスキルの分）":"持久力温存の回避に必要");
   if(x.inLoadout)meta.push("おすすめ構成に入る");
   if(x.conn)meta.push((x.conn.rate>=0.99?"終盤接続":`終盤接続（約${Math.round(x.conn.rate*100)}%）`)+`・終盤に入るとき効果が残り約${x.conn.rem.toFixed(1)}秒`);
