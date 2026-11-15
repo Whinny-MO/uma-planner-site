@@ -977,7 +977,9 @@ function derive(p){
     }
     if(ok[0].route.scEvo){
       // シナリオ進化の候補：進化しなかった場合の代わり（同じ系統でいちばん良い段階）との差を伸びとする
-      const alt=ok.find(x=>!x.route.scEvo)||null;
+      // 代わり：シナリオ進化以外でいちばん良い段階。同等なら育成ウマ娘の進化後を優先（進化後は同じSPで上乗せのため）
+      const isCE=x=>x.route.evo&&!x.route.evo.scenario?1:0;
+      const alt=ok.filter(x=>!x.route.scEvo).sort((a,b)=>(b.expAdj-a.expAdj>0.01?1:a.expAdj-b.expAdj>0.01?-1:0)||(isCE(b)-isCE(a)))[0]||null;
       for(const x of list.filter(x=>x.route&&x.route.scEvo&&x.r.ok))scCands.push({x,alt,gain:x.expAdj-(alt?alt.expAdj:0)});
     }
     reps.push(ok[0]);
