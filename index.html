@@ -941,7 +941,7 @@ function derive(p){
   for(const x of p.rows){x.route=routeOf(x.s);x.expAdj=x.exp;x.conserveNeed=false;x.statPassive=statPassive(x.s);x.marg=null}
   // 持久力温存の回避に必要な回復：入手できる回復を、デッキ等→白因子の順、発動が早い順に積み、温存が起きなくなるまで必須扱い
   const selHeal=(st.inherit||[]).map(id=>p.inhAll.find(u=>u.s.id===id)).filter(u=>u&&u.s.effect==="heal").flatMap(u=>UmaSim.planSkill(ctx,u.s,.5));
-  const healRows=p.rows.filter(x=>x.s.effect==="heal"&&x.route&&x.r.ok);
+  const healRows=p.rows.filter(x=>x.s.effect==="heal"&&x.route&&x.r.ok&&pinOf(x.s.id)!=="never");
   const firstPos=x=>{const pl=UmaSim.planSkill(ctx,x.s,.5);return pl.length?pl[0].pos:1e9};
   healRows.sort((a,b)=>(a.route.kind==="own"?0:1)-(b.route.kind==="own"?0:1)||firstPos(a)-firstPos(b)||(b.s.value||0)-(a.s.value||0));
   let consPlans=selHeal.concat(dbOf(ctx));
@@ -1093,7 +1093,7 @@ function summarize(p,d){
   st.inherit=(st.inherit||[]).filter(id=>byId.has(id)).slice(0,6);
   const sel=st.inherit.map(id=>byId.get(id));
   const selHeal=sel.filter(u=>u.s.effect==="heal").flatMap(u=>UmaSim.planSkill(ctx,u.s,.5));
-  const ownHeals=d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.route.kind==="own"&&x.r.ok).flatMap(x=>UmaSim.planSkill(ctx,x.s,.5));
+  const ownHeals=d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.route.kind==="own"&&x.r.ok&&pinOf(x.s.id)!=="never").flatMap(x=>UmaSim.planSkill(ctx,x.s,.5));
   const healPlans=ownHeals.concat(selHeal);
   const m0heal=ownHeals;
   const dbf=dbOf(ctx);
@@ -1110,7 +1110,7 @@ function summarize(p,d){
   // 終盤の加速：区分が終盤のもの＋コーナー・直線・指定なしでも発動位置が終盤に入るもの
   const lateStart=ctx.phaseIv[2][0];
   const lateAccel=x=>x.s.effect==="accel"&&(LATE.includes(x.s.zone)||UmaSim.planSkill(ctx,x.s,.5).some(pl=>pl.pos>=lateStart-1));
-  const ownAccAll=d.reps.filter(x=>lateAccel(x)&&x.route.kind==="own"&&x.r.ok&&x.tierBase!=="none");
+  const ownAccAll=d.reps.filter(x=>lateAccel(x)&&x.route.kind==="own"&&x.r.ok&&x.tierBase!=="none"&&pinOf(x.s.id)!=="never");
   // ランダム位置の加速は終盤に出る保証がないので、控えめ設定では「手持ちの加速」に数えない
   const ownAcc=S.randAccelSafe?ownAccAll.filter(x=>!x.r.random):ownAccAll;
   const ownAccRand=ownAccAll.length-ownAcc.length;
@@ -1135,7 +1135,7 @@ function summarize(p,d){
   // そこに足したときに増える分で評価し直す（同じタイミングで効果が重なるスキルは低く出る）
   {
     const isPas=k=>(k.ep||[]).length>0&&k.ep.every(q=>q.baseTime<0);
-    const ownTaken=d.reps.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok&&x.s.effect!=="heal"&&(x.tierBase==="must"||x.tierBase==="rec"));
+    const ownTaken=d.reps.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok&&x.s.effect!=="heal"&&pinOf(x.s.id)!=="never"&&(x.tierBase==="must"||x.tierBase==="rec"));
     const baseAll=healPlans.concat(ownTaken.flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)),sel.filter(u=>u.s.effect!=="heal").flatMap(u=>UmaSim.planSkill(ctx,u.s,.5)));
     const runAll=UmaSim.run(ctx,baseAll);
     for(const x of d.reps){
@@ -1694,7 +1694,7 @@ function renderSheet(p){
       <div class="kpi"><span class="k">スタミナ（持久力温存）</span><span class="v">${ok?"起きない":"−"+Math.round(m.deficit)}</span>
         <span class="d">${stState} ${conserveNote}。掛かり率${(m.rushChance*100).toFixed(1)}%を期待値で反映。${m.costHp>0?`取る予定のスキルの体力消費（${esc(m.costNames.join("・"))}：計 最大体力の${(m.costHp*100).toFixed(1)}%）を含む。`:""}${m.dbSet.gold||m.dbSet.white?`スタミナデバフ（−3%級${m.dbSet.gold}本・−1%級${m.dbSet.white}本）を受ける前提。`:""}<br>${m.dbTol<0?"スタミナデバフに耐える余裕はない":m.dbTol>=12?"スタミナデバフ（−3%級）を12本以上受けても起きない":m.dbTol===0?`スタミナデバフ（−3%級）を${m.dbSet.gold||m.dbSet.white?"これ以上":""}1本受けると起きる`:`スタミナデバフ（−3%級）を${m.dbSet.gold||m.dbSet.white?"さらに":""}${m.dbTol}本まで受けても起きない（${m.dbTol+1}本目で起きる）`}。${compNote?`位置取りの消費：${compNote}。`:""}${m.deficitRush>0?`<br>掛かりが最大12秒続くと約${Math.round(m.deficitRush)}不足（金回復 約${(m.deficitRush/m.unit).toFixed(1)}個分）`:"<br>掛かりが最大12秒続いても起きない"}</span></div>
       <div class="kpi"><span class="k">終盤の加速</span><span class="v">${A.reach1.reachPos!=null?Math.round(A.reach1.reachPos-A.reach1.lateStart)+"<small>mで最高速度</small>":"届かない"}</span>
-        <span class="d">${accOk?'<span class="state st-ok">足りる</span>':'<span class="state st-ng">足りない</span>'} 加速スキルなしだと${rd(A.reach0)}で最高速度に届く。手持ちの加速${m.accelOwn}個で${rd(A.reach1)}に短縮${A.rand?`（ランダム位置の加速${A.rand}個は数えていない）`:""}。白因子の加速をもう1個足すと最大${A.bestNext.toFixed(2)}バ身${A.bestAcc?`（${esc(A.bestAcc.s.name)}）`:""}、加速以外で因子化できるいちばん良いスキルは${A.alt.toFixed(2)}バ身${A.altSkill?`（${esc(A.altSkill.s.name)}）`:""}。${accOk?"加速以外に因子の枠を使ったほうが得なので、加速は足りています":"加速を足したほうが得なので、加速の因子を優先しましょう"}</span></div>
+        <span class="d">${accOk?'<span class="state st-ok">足りる</span>':'<span class="state st-ng">足りない</span>'} 加速スキルなしだと${rd(A.reach0)}で最高速度に届く。${m.accelOwn?`手持ちの加速${m.accelOwn}個で${rd(A.reach1)}に短縮`:"手持ちの終盤の加速はなし"}${A.rand?`（ランダム位置の加速${A.rand}個は数えていない）`:""}。白因子の加速をもう1個足すと最大${A.bestNext.toFixed(2)}バ身${A.bestAcc?`（${esc(A.bestAcc.s.name)}）`:""}、加速以外で因子化できるいちばん良いスキルは${A.alt.toFixed(2)}バ身${A.altSkill?`（${esc(A.altSkill.s.name)}）`:""}。${accOk?"加速以外に因子の枠を使ったほうが得なので、加速は足りています":"加速を足したほうが得なので、加速の因子を優先しましょう"}</span></div>
       <div class="kpi"><span class="k">白因子で拾うスキル</span><span class="v">${m.fac.top.length}<small> 超優先</small> ${m.fac.high.length}<small> 優先</small></span><span class="d">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントで取れない白スキルのうち、効果の大きいもの</span></div>
     </div>`)}
     ${sec("loadout","おすすめのスキル構成",loadHtml)}
