@@ -153,6 +153,8 @@
     if (cur < D) out.push([cur, D]);
     return out;
   }
+  // [開始, 終了, …] の区間リストから [開始, 終了] だけを取り出す（コーナー番号などを落とす）
+  const ivs = (list) => list.map(([a, b]) => [a, b]);
   const totalLen = (A) => A.reduce((s, [a, b]) => s + (b - a), 0);
   function pointAt(A, frac) {
     let r = totalLen(A) * frac;
@@ -220,6 +222,7 @@
 
   /* ---------- スキルの発動位置 ---------- */
   // 1つの条件グループから、発動しうる区間と「ランダム位置か」を求める。発動不可なら null。
+  const BASE_STAT = { base_speed: "spd", base_stamina: "sta", base_power: "pow", base_guts: "gut", base_wiz: "wit" };
   function groupRegion(ctx, group) {
     const { D, phaseIv } = ctx;
     let region = [[0, D]];
@@ -232,7 +235,7 @@
     for (const [key, list] of Object.entries(group)) {
       // 値を持たない補助キー
       if (Array.isArray(list) && !list.length) {
-        if (key === "notCorner") lim(complement(ctx.corners.map(([a, b]) => [a, b]), D));
+        if (key === "notCorner") lim(complement(ivs(ctx.corners), D));
         else if (key === "finalCornerOver" && ctx.finalCorner) lim([[ctx.finalCorner[1], D]]);
         else if (key === "notFinalCorner" && ctx.finalCorner) lim(complement([[ctx.finalCorner[0], ctx.finalCorner[1]]], D));
         else if (key === "finalStraight") lim([ctx.lastStraight]);
@@ -242,7 +245,7 @@
           if (f) { if ((f[STYLE_NAMES[ctx.style]] || 0) > 0) return null; } else unknown.push(key);
         }
         else if (key === "finalCorner" && ctx.finalCorner) lim([[ctx.finalCorner[0], D]]);
-        else if (key === "corner") lim(ctx.corners.map(([a, b]) => [a, b]));
+        else if (key === "corner") lim(ivs(ctx.corners));
         // 最終コーナーがないコース（直線コース）：最終コーナー・その後が条件なら発動しない、最終コーナー以外なら制限なし
         else if ((key === "finalCorner" || key === "finalCornerOver") && !ctx.finalCorner) return null;
         else if (key === "notFinalCorner" && !ctx.finalCorner) { /* 制限なし */ }
@@ -275,21 +278,21 @@
           case "phase_firsthalf_random": { const [a, b] = phaseIv[v]; lim([[a, (a + b) / 2]]); random = true; break; }
           case "phase_laterhalf_random": { const [a, b] = phaseIv[v]; lim([[(a + b) / 2, b]]); random = true; break; }
           case "phase_firstquarter_random": { const [a, b] = phaseIv[v]; lim([[a, a + (b - a) / 4]]); random = true; break; }
-          case "phase_corner_random": lim(intersect(ctx.corners.map(([a, b]) => [a, b]), [phaseIv[v]])); random = true; break;
+          case "phase_corner_random": lim(intersect(ivs(ctx.corners), [phaseIv[v]])); random = true; break;
           case "phase_straight_random": lim(intersect(ctx.straights, [phaseIv[v]])); random = true; break;
           case "phase_first_half_straight_random": { const [a, b] = phaseIv[v]; lim(intersect(ctx.straights, [[a, (a + b) / 2]])); random = true; break; }
           case "phase_latter_half_straight_random": { const [a, b] = phaseIv[v]; lim(intersect(ctx.straights, [[(a + b) / 2, b]])); random = true; break; }
           case "last_straight_random": lim([ctx.lastStraight]); random = true; break;
           case "phase_firstquarter": { const [a, b] = phaseIv[v]; lim([[a, a + (b - a) / 4]]); break; }
-          case "up_slope_random_later_half": lim(intersect(ctx.ups.map(([a, b]) => [a, b]), [[D / 2, D]])); random = true; break;
-          case "corner_random": lim(ctx.corners.filter((c) => c[2] === v).map(([a, b]) => [a, b])); random = true; break;
-          case "all_corner_random": lim(ctx.corners.map(([a, b]) => [a, b])); random = true; break;
+          case "up_slope_random_later_half": lim(intersect(ivs(ctx.ups), [[D / 2, D]])); random = true; break;
+          case "corner_random": lim(ivs(ctx.corners.filter((c) => c[2] === v))); random = true; break;
+          case "all_corner_random": lim(ivs(ctx.corners)); random = true; break;
           case "corner":
-            if ((sign === "!=" && v === 0) || (sign === ">=" && v >= 1)) lim(ctx.corners.map(([a, b]) => [a, b]));
-            else if (sign === "==" && v === 0) lim(complement(ctx.corners.map(([a, b]) => [a, b]), D));
-            else if (sign === "==") lim(ctx.corners.filter((c) => c[2] === v).map(([a, b]) => [a, b]));
+            if ((sign === "!=" && v === 0) || (sign === ">=" && v >= 1)) lim(ivs(ctx.corners));
+            else if (sign === "==" && v === 0) lim(complement(ivs(ctx.corners), D));
+            else if (sign === "==") lim(ivs(ctx.corners.filter((c) => c[2] === v)));
             break;
-          case "notSpecifiedCorner": lim(complement(ctx.corners.filter((c) => c[2] === v).map(([a, b]) => [a, b]), D)); break;
+          case "notSpecifiedCorner": lim(complement(ivs(ctx.corners.filter((c) => c[2] === v)), D)); break;
           case "corner_count": if (!cmp(ctx.corners.length, sign, v)) return null; break;
           case "is_dirtgrade": if (cmp(ctx.course.surface === "ダート" ? 1 : 0, sign, v) === false) return null; break;
           case "straight_random": lim(ctx.straights); random = true; break;
@@ -324,21 +327,18 @@
             else if (sign === ">=" || sign === ">") lim([[0, D - v]]);
             else if (sign === "==") lim([[D - v, D - v + 1]]);
             break;
-          case "up_slope_random": lim(ctx.ups.map(([a, b]) => [a, b])); random = true; break;
-          case "down_slope_random": lim(ctx.downs.map(([a, b]) => [a, b])); random = true; break;
+          case "up_slope_random": lim(ivs(ctx.ups)); random = true; break;
+          case "down_slope_random": lim(ivs(ctx.downs)); random = true; break;
           case "slope":
-            if (v === 1) lim(ctx.ups.map(([a, b]) => [a, b]));
-            else if (v === 2) lim(ctx.downs.map(([a, b]) => [a, b]));
-            else if (v === 0) lim(complement([...ctx.ups, ...ctx.downs].map(([a, b]) => [a, b]), D));
+            if (v === 1) lim(ivs(ctx.ups));
+            else if (v === 2) lim(ivs(ctx.downs));
+            else if (v === 0) lim(complement(ivs([...ctx.ups, ...ctx.downs]), D));
             break;
           case "accumulatetime":
             if (sign === ">=" || sign === ">") lim([[v * ctx.V0 * 0.9, D]]);
             break;
-          case "base_speed": if (!cmp(ctx.stats.spd, sign, v)) return null; break;
-          case "base_stamina": if (!cmp(ctx.stats.sta, sign, v)) return null; break;
-          case "base_power": if (!cmp(ctx.stats.pow, sign, v)) return null; break;
-          case "base_guts": if (!cmp(ctx.stats.gut, sign, v)) return null; break;
-          case "base_wiz": if (!cmp(ctx.stats.wit, sign, v)) return null; break;
+          case "base_speed": case "base_stamina": case "base_power": case "base_guts": case "base_wiz":
+            if (!cmp(ctx.stats[BASE_STAT[key]], sign, v)) return null; break;
           case "always": break;
           case "phase_firsthalf": { const [a, b] = phaseIv[v]; lim([[a, (a + b) / 2]]); break; }
           case "phase_laterhalf": { const [a, b] = phaseIv[v]; lim([[(a + b) / 2, b]]); break; }

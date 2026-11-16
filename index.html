@@ -573,6 +573,8 @@ let st=Object.assign(structuredClone(DEFAULT_STATE),LS.get("umaplan2.state",{}))
 // 目標ステータスが以前の初期値のままなら、新しい初期値にする
 if(JSON.stringify(st.stats)===JSON.stringify({spd:1200,sta:1000,pow:1100,gut:600,wit:1100}))st.stats=structuredClone(DEFAULT_STATE.stats);
 const persist=()=>LS.set("umaplan2.state",st);
+// 設定を保存して、プランを計算し直す印を付ける
+const saveS=()=>{LS.set("umaplan2.settings",S);planDirty=true};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const rk=r=>`<span class="rk rk-${esc(r)}">${esc(r)}</span>`;
@@ -608,25 +610,25 @@ function seg(el,opts,cur,on){el.innerHTML="";opts.forEach(o=>{const b=document.c
 function fillSelect(sel,items,cur){sel.innerHTML=items.map(([v,l])=>`<option value="${esc(v)}"${String(v)===String(cur)?" selected":""}>${esc(l)}</option>`).join("")}
 
 /* ---------- 更新履歴 ---------- */
-function openChangelog(){
-  const cl=D.changelog||[];
+// 画面下から出るシート（見出しと「閉じる」付き）。背景か「閉じる」をタップすると閉じる
+function openSheet(title,body){
   const bg=document.createElement("div");bg.className="sheet-bg";
-  bg.innerHTML=`<div class="sheet" role="dialog" aria-label="更新履歴"><div style="display:flex;align-items:center;gap:8px"><h3>更新履歴</h3><button class="btn sm" style="margin-left:auto" data-close>閉じる</button></div>
-    <div class="cllist">${cl.map((e,i)=>`<details${i===0?" open":""}><summary>${esc(e.date.replace(/-/g,"/"))}<small>${e.items.length}件</small></summary><ul>${e.items.map(([t,x])=>`<li><span class="tm">${esc(t)}</span><span>${esc(x)}</span></li>`).join("")}</ul></details>`).join("")}</div></div>`;
+  bg.innerHTML=`<div class="sheet" role="dialog" aria-label="${esc(title)}"><div style="display:flex;align-items:center;gap:8px"><h3>${esc(title)}</h3><button class="btn sm" style="margin-left:auto" data-close>閉じる</button></div>
+    ${body}</div>`;
   document.body.appendChild(bg);
   const close=()=>bg.remove();
   bg.addEventListener("click",e=>{if(e.target===bg||e.target.hasAttribute("data-close"))close()});
+  return{bg,close};
+}
+function openChangelog(){
+  const cl=D.changelog||[];
+  openSheet("更新履歴",`<div class="cllist">${cl.map((e,i)=>`<details${i===0?" open":""}><summary>${esc(e.date.replace(/-/g,"/"))}<small>${e.items.length}件</small></summary><ul>${e.items.map(([t,x])=>`<li><span class="tm">${esc(t)}</span><span>${esc(x)}</span></li>`).join("")}</ul></details>`).join("")}</div>`);
 }
 
 /* ---------- 選択シート（検索付き） ---------- */
 function openPicker({title,items,filters,render,onPick}){
-  const bg=document.createElement("div");bg.className="sheet-bg";
-  bg.innerHTML=`<div class="sheet" role="dialog" aria-label="${esc(title)}"><div style="display:flex;align-items:center;gap:8px"><h3>${esc(title)}</h3><button class="btn sm" style="margin-left:auto" data-close>閉じる</button></div>
-    <input id="pkq" placeholder="名前・衣装・愛称で検索" autocomplete="off">${filters?'<div class="seg sm" id="pkf"></div>':""}<div class="list" id="pkl"></div></div>`;
-  document.body.appendChild(bg);
+  const {bg,close}=openSheet(title,`<input id="pkq" placeholder="名前・衣装・愛称で検索" autocomplete="off">${filters?'<div class="seg sm" id="pkf"></div>':""}<div class="list" id="pkl"></div>`);
   let f=filters?filters.opts[0]:null;
-  const close=()=>bg.remove();
-  bg.addEventListener("click",e=>{if(e.target===bg||e.target.hasAttribute("data-close"))close()});
   const draw=()=>{const q=kanaKey(bg.querySelector("#pkq").value.trim());
     const hits=items.filter(it=>(!q||kanaKey(it.search+(READ_EXTRA[it.s?it.s.name:it.c?it.c.name:""]||"")).includes(q))&&(!filters||f===filters.opts[0]||filters.test(it,f))).slice(0,60);
     bg.querySelector("#pkl").innerHTML=hits.length?hits.map((it,i)=>`<button class="opt" type="button" data-i="${i}">${render(it)}</button>`).join(""):'<p class="hint">見つかりませんでした。</p>';
@@ -694,6 +696,12 @@ $("#scenario").addEventListener("change",e=>{const prev=capsOf(scenario());st.sc
   dirty();renderScenarioHint();renderUma()});
 
 /* ---------- 2. ウマ娘 ---------- */
+// 適性がいちばん高い脚質
+const bestStyle=c=>STYLES.slice().sort((x,y)=>RANKS.indexOf(c.apt[x])-RANKS.indexOf(c.apt[y]))[0];
+function pickChara(title,onPick){
+  const items=D.charas.map(c=>({c,search:`${c.name}${c.title}${c.nickname}`}));
+  openPicker({title,items,render:it=>`<span><span class="t">${esc(it.c.title)}</span><span class="n">${esc(it.c.name)}</span></span>`,onPick:it=>onPick(it.c)});
+}
 function renderUma(){
   const ch=chara();
   $("#charaPick").innerHTML=`<span><span class="t">${esc(ch.title)}</span><span class="n">${esc(ch.name)}</span></span><span class="chg">変更 ›</span>`;
@@ -708,11 +716,7 @@ function renderApt(){const ch=chara(),c=course(),cat=distCat(c.dist),a=apts();
   $("#aptGrid").innerHTML=row("バ場",["芝","ダート"],c.surface)+row("距離",["短","マイル","中","長"],cat)+row("脚質",STYLES,st.style);
   const r=RANKS.map(x=>[x,x]);
   fillSelect($("#aptDist"),r,a.dist);fillSelect($("#aptSurf"),r,a.surf);fillSelect($("#aptStyle"),r,a.style);}
-$("#charaPick").addEventListener("click",()=>{
-  const items=D.charas.map(c=>({c,search:`${c.name}${c.title}${c.nickname}`}));
-  openPicker({title:"育成ウマ娘を選ぶ",items,render:it=>`<span><span class="t">${esc(it.c.title)}</span><span class="n">${esc(it.c.name)}</span></span>`,
-    onPick:it=>{st.charaId=it.c.id;const best=STYLES.slice().sort((x,y)=>RANKS.indexOf(it.c.apt[x])-RANKS.indexOf(it.c.apt[y]))[0];st.style=best;st.apt=null;dirty();renderUma()}});
-});
+$("#charaPick").addEventListener("click",()=>pickChara("育成ウマ娘を選ぶ",c=>{st.charaId=c.id;st.style=bestStyle(c);st.apt=null;dirty();renderUma()}));
 [["#aptDist","dist"],["#aptSurf","surf"],["#aptStyle","style"]].forEach(([s,k])=>$(s).addEventListener("change",e=>{st.apt=Object.assign({},apts(),{[k]:e.target.value});dirty()}));
 ["spd","sta","pow","gut","wit"].forEach(k=>$("#st-"+k).addEventListener("input",e=>{const v=parseInt(e.target.value,10);if(v>0){st.stats[k]=Math.min(2500,v);st.statsAuto=false;dirty()}}));
 $("#mood").addEventListener("change",e=>{st.mood=e.target.value;dirty()});
@@ -730,7 +734,7 @@ function renderDeckInto(wrap,arr,changed,recFn){
     // ヒントのスキルを表示。友人などヒントのないカードは、イベントで取れるスキル（金を先）を表示
     let sk=cd?cd.skillIds.map(id=>SK[id]).filter(s=>s&&(s.rarity==="gold"||s.rarity==="white")):[];
     if(cd&&!sk.length)sk=(cd.eventSkillIds||[]).map(id=>SK[id]).filter(s=>s&&(s.rarity==="gold"||s.rarity==="white")).sort((a,b)=>(b.rarity==="gold")-(a.rarity==="gold"));
-    d.innerHTML=`<div class="top"><span class="no">${i+1}</span><span style="font-weight:800;font-size:13px;white-space:nowrap">枠${i+1}${i===5?'<small style="font-size:10.5px;color:var(--muted);margin-left:3px">フレンド</small>':""}</span>${cd?`<span class="type" style="background:${TYPE_COLOR[cd.type]||"#999"}">${esc(cd.rarity)} ${esc(cd.type)}</span><button class="xbtn" type="button" data-clear aria-label="このカードを外す" title="外す">✕</button>`:""}</div>
+    d.innerHTML=`<div class="top"><span class="no">${i+1}</span><span style="font-weight:800;font-size:13px;white-space:nowrap">枠${i+1}${i===5?'<small style="font-size:10.5px;color:var(--muted);margin-left:3px">フレンド</small>':""}</span>${cd?`<span class="type" style="background:${typeColor(cd.type)}">${esc(cd.rarity)} ${esc(cd.type)}</span><button class="xbtn" type="button" data-clear aria-label="このカードを外す" title="外す">✕</button>`:""}</div>
       <button class="pick" type="button">${cd?`<span><span class="t">${esc(cd.title)}</span><span class="n">${esc(cd.name)}</span></span>`:`<span class="n" style="color:var(--muted)">カードを選ぶ</span>`}<span class="chg">${cd?"変更 ›":"選ぶ ›"}</span></button>
       <div class="chips">${sk.slice(0,10).map(s=>`<span class="chip${s.rarity==="gold"?" gold":""}">${esc(s.name)}</span>`).join("")}${sk.length>10?`<span class="chip">ほか${sk.length-10}件</span>`:""}</div>
 `;
@@ -739,8 +743,12 @@ function renderDeckInto(wrap,arr,changed,recFn){
     const cl=d.querySelector("[data-clear]");if(cl)cl.addEventListener("click",()=>{arr[i]=null;changed()});
   }
 }
+// サポカの選択シートの共通部分：候補（R以外）・種類の絞り込み・種類の色
+const supportItems=()=>D.supports.filter(s=>s.rarity!=="R").map(s=>({s,search:`${s.name}${s.title}`}));
+const SUPPORT_FILTERS={opts:["すべて","スピード","スタミナ","パワー","根性","賢さ","友人","グループ"],test:(it,f)=>it.s.type===f};
+const typeColor=t=>TYPE_COLOR[t]||"#999";
 function pickSupport(i,arr,changed,recFn){
-  let items=D.supports.filter(s=>s.rarity!=="R").map(s=>({s,search:`${s.name}${s.title}`}));
+  let items=supportItems();
   // おすすめ（因子周回タブ）：おすすめのカードを先頭に並べ、増える因子のヒントを添える
   const rec=recFn?recFn(i):null;
   if(rec&&rec.length){const m=new Map(rec.map((r,k)=>[r.sp.id,{...r,rank:k}]));items.forEach(it=>it.rec=m.get(it.s.id)||null);
@@ -749,8 +757,8 @@ function pickSupport(i,arr,changed,recFn){
   items.forEach(it=>{const k=arr.indexOf(it.s.id);it.inDeck=k>=0?k:null});
   items.sort((a,b)=>(a.inDeck!=null)-(b.inDeck!=null));
   openPicker({title:`${i===5?"フレンド枠":"枠"+(i+1)}のカード`,items,
-    filters:{opts:["すべて","スピード","スタミナ","パワー","根性","賢さ","友人","グループ"],test:(it,f)=>it.s.type===f},
-    render:it=>`<span class="type" style="background:${TYPE_COLOR[it.s.type]||"#999"}">${esc(it.s.rarity)}</span><span><span class="t">${esc(it.s.title)}</span><span class="n">${esc(it.s.name)}</span>${it.inDeck!=null?`<span class="indeck">${it.inDeck===i?"この枠に編成中":`編成中（${it.inDeck===5?"フレンド枠":"枠"+(it.inDeck+1)}）・選ぶとこの枠に移動`}</span>`:it.rec?`<span class="prec"><b>おすすめ</b> 新しく拾える因子：${it.rec.names.map(esc).join("・")}</span>`:""}</span>`,
+    filters:SUPPORT_FILTERS,
+    render:it=>`<span class="type" style="background:${typeColor(it.s.type)}">${esc(it.s.rarity)}</span><span><span class="t">${esc(it.s.title)}</span><span class="n">${esc(it.s.name)}</span>${it.inDeck!=null?`<span class="indeck">${it.inDeck===i?"この枠に編成中":`編成中（${it.inDeck===5?"フレンド枠":"枠"+(it.inDeck+1)}）・選ぶとこの枠に移動`}</span>`:it.rec?`<span class="prec"><b>おすすめ</b> 新しく拾える因子：${it.rec.names.map(esc).join("・")}</span>`:""}</span>`,
     onPick:it=>{const k=arr.indexOf(it.s.id);if(k>=0&&k!==i)arr[k]=null;arr[i]=it.s.id;changed()}});
 }
 
@@ -772,11 +780,42 @@ const pinsNow=()=>{const v=(st.pins||{})[pinKey()]||{};return{must:v.must||[],ne
 function setPin(sid,mode){st.pins=st.pins||{};const k=pinKey();const v=pinsNow();
   v.must=v.must.filter(x=>x!==sid);v.never=v.never.filter(x=>x!==sid);if(mode==="must")v.must.push(sid);if(mode==="never")v.never.push(sid);
   if(!v.must.length&&!v.never.length)delete st.pins[k];else st.pins[k]=v;persist();if(lastPlan&&!planDirty&&!computing)renderSheet(lastPlan)}
-const pinOf=sid=>{const k=SK[sid];if(!k)return null;const g=k.groupId||k.id,v=pinsNow(),gg=id=>{const z=SK[id];return z&&(z.groupId||z.id)};return v.must.some(id=>gg(id)===g)?"must":v.never.some(id=>gg(id)===g)?"never":null};
+const pinOf=sid=>{const k=SK[sid];if(!k)return null;const g=gOf(k),v=pinsNow(),gg=id=>SK[id]&&gOf(SK[id]);return v.must.some(id=>gg(id)===g)?"must":v.never.some(id=>gg(id)===g)?"never":null};
 // 持久力回復の効果を持つか（獲得バ身には含めず、スタミナの判定で別に評価する）
 const hasHeal=s=>(s.ep||[]).some(q=>(q.effects||[]).some(e=>e.target===9&&e.value>0&&(e.rangeType==null||e.rangeType===1)));
 const isLottery=s=>(s.ep||[]).some(q=>(q.conditions||[]).some(g=>["random_lot","random_lot_shared"].some(k=>(g[k]||[]).some(c=>Number(c.value)<50))));
 const mOf=(s,r)=>(S.randAccelSafe&&s.effect==="accel"&&r.random&&r.q25!=null)?r.q25:r.mean;
+// ---- 共通の小さな処理 ----
+// 系統（○・◎・金の同じグループ）の番号
+const gOf=s=>s.groupId||s.id;
+const gid=id=>{const k=SK[id];return k?gOf(k):id};
+// 常時発動（パッシブ）のスキルか（発動率を掛けない）
+const isPassive=s=>(s.ep||[]).length>0&&s.ep.every(q=>q.baseTime<0);
+// 発動の成立率（順位・位置条件などを畳み込んだ結果には掛けない）
+const probF=r=>r.folded?1:(r.prob??1);
+// 期待バ身＝獲得バ身×発動率×成立率（パッシブは発動率なし、出走メンバー次第は半分）
+const expVal=(s,r,rate,o={})=>r.ok?mOf(s,r)*(o.passive?1:rate)*(o.field?.5:1)*probF(r):0;
+// 手持ちのスキル（plans）を入れて走らせたときに、さらに s を足すと増える分
+const addBashin=(ctx,s,plans,run)=>UmaSim.skillBashin(ctx,s,{noHeal:true,base:run,basePlans:plans,samples:Math.min(6,S.samples)});
+// スキルの発動計画（ランダム位置は中央の位置）
+const plansOf=(ctx,list)=>UmaSim.plansFor(ctx,list);
+const firstPos=(ctx,s)=>{const pl=UmaSim.planSkill(ctx,s,.5);return pl.length?pl[0].pos:1e9};
+// 体力の不足量（持久力温存が起きなければ0）
+const shortOf=r=>r.conserveAt==null?0:r.conserveShort;
+// 表示・判定に使う値：白因子は手持ちと合わせたときに増える分（marg）との小さいほう
+const tierVal=x=>x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj;
+// 因子の表示名：○の因子で◎まで取れる場合は○の名前
+const facName=x=>x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name;
+// 因子化「通常」の上限（設定、25〜40件）
+const facNormCap=()=>Math.max(25,Math.min(40,Math.round(S.facNorm||35)));
+// サポカがヒント（トレーニング・イベント）で持つ白スキルの系統
+const whiteGroups=cd=>[...new Set([...cd.skillIds,...(cd.eventSkillIds||[])])].filter(id=>SK[id]&&SK[id].rarity==="white").map(gid);
+// 育成ウマ娘の進化（シナリオ進化ではない）で取る行か
+const isCharaEvo=x=>!!(x.route&&x.route.evo&&!x.route.evo.scenario);
+// 選んでいるシナリオの進化スキルの一覧
+const scEvoData=()=>(D.scenarioEvo||{})[st.scenario]||{list:[]};
+const emptyDeck=()=>[null,null,null,null,null,null];
+const pad6=a=>(a||[]).concat(emptyDeck()).slice(0,6);
 // スキル判定の段階：プランごとに、入手できるスキルでいちばん伸びるもの（TH.best）を基準に、
 // 70%以上＝必須、40%以上＝推奨、それ未満で0.1バ身以上＝余裕があれば。基準の割合は設定で変えられる
 const TH={best:1,must:1,rec:.5,opt:.1};
@@ -812,7 +851,7 @@ async function computePlan(onProgress){
   const evoSkills=(ch.upgrades||[]).map(u=>SK[u.skillId]).filter(Boolean);
   pool.push(...evoSkills);
   // シナリオの進化スキル：選んだシナリオのものだけ（元スキルを取ったうえで進化。1回の育成で2つまで）
-  const scEvo=((D.scenarioEvo||{})[st.scenario]||{list:[]}).list.filter(e=>SK[e.evo]&&e.base.some(id=>SK[id]));
+  const scEvo=scEvoData().list.filter(e=>SK[e.evo]&&e.base.some(id=>SK[id]));
   pool.push(...scEvo.map(e=>SK[e.evo]).filter(k=>!pool.includes(k)));
   const live=[],dead=[];
   for(const s of pool){(UmaSim.planSkill(ctx,s,.5).length?live:dead).push(s)}
@@ -831,7 +870,7 @@ async function computePlan(onProgress){
   for(const s of heals){
     const base=UmaSim.run(ctx,healPlans);
     const r=UmaSim.skillBashin(ctx,s,{noHeal:true,base,basePlans:healPlans,samples:S.samples});
-    rows.push({s,r,exp:r.ok?r.mean*rate*(r.folded?1:(r.prob??1)):0});
+    rows.push({s,r,exp:r.ok?r.mean*rate*probF(r):0});
     if(r.ok&&r.mean>0.05){const pl=UmaSim.planSkill(ctx,s,.5);healPlans=healPlans.concat(pl);if(deckAny.has(s.id))ownHealPlans=ownHealPlans.concat(pl)}
     await tick();
   }
@@ -840,7 +879,7 @@ async function computePlan(onProgress){
     const r=UmaSim.skillBashin(ctx,s,{noHeal:true,base,basePlans:ownHealPlans,samples:S.samples});
     const passive=(s.ep||[]).every(p=>p.baseTime<0);
     const fieldDep=r.ok&&(r.unknown||[]).some(k=>FIELD_KEYS.test(k));
-    rows.push({s,r,field:fieldDep,exp:r.ok?mOf(s,r)*(passive?1:rate)*(fieldDep?0.5:1)*(r.folded?1:(r.prob??1)):0});
+    rows.push({s,r,field:fieldDep,exp:expVal(s,r,rate,{passive,field:fieldDep})});
     await tick();
   }
   // 継承固有（同じウマ娘は親にできないので除外）。全員分を評価しておき、候補表示と任意選択の両方に使う
@@ -853,7 +892,7 @@ async function computePlan(onProgress){
     const evo=S.inhEvo!==false?EVO_INH.get(x.uniqueSkillId):null;
     if(evo)s9=evo;
     const r=UmaSim.skillBashin(ctx,s9,{noHeal:true,base,basePlans:ownHealPlans,samples:Math.min(6,S.samples)});
-    inhAll.push({x,s:s9,evo:!!evo,r,exp:r.ok?mOf(s9,r)*rate*(r.folded?1:(r.prob??1)):0});
+    inhAll.push({x,s:s9,evo:!!evo,r,exp:expVal(s9,r,rate)});
     await tick();
   }
   inhAll.sort((p,q)=>q.exp-p.exp);
@@ -917,7 +956,7 @@ function derive(p){
   const ownLabel=id=>{if(!ranks)return"育成ウマ娘の所持スキル";const r=ranks[id];return r===0||r==null?"初期スキル":`覚醒Lv${r}`};
   // 入手経路（ゲームの取得ルール）：固有／サポカのトレーニング／選んだイベント選択肢／覚醒／白因子（白スキルのみ。金は因子で継承できない）
   const evoMap=new Map((ch.upgrades||[]).map(u=>[u.skillId,u]));
-  const scEvoMap=new Map((((D.scenarioEvo||{})[st.scenario]||{list:[]}).list).map(e=>[e.evo,e]));
+  const scEvoMap=new Map(scEvoData().list.map(e=>[e.evo,e]));
   // ○→◎の系統：○が取れれば（ヒント・白因子とも）育成中に◎も取れる。◎自体の経路がなければ○の経路を使う
   const lowOf=s=>/◎$/.test(s.name)&&s.rarity==="white"?D.skills.find(k=>k.groupId&&k.groupId===s.groupId&&k.id!==s.id&&k.rarity==="white"&&/○$/.test(k.name)):null;
   const routeOf=s=>{const r0=routeOf0(s);const lo=lowOf(s);
@@ -945,10 +984,9 @@ function derive(p){
   const statPassive=s=>{const ep=s.ep||[];return ep.length>0&&ep.every(q=>q.baseTime<0&&(q.effects||[]).every(e=>e.target>=2&&e.target<=5))};
   for(const x of p.rows){x.route=routeOf(x.s);x.expAdj=x.exp;x.conserveNeed=false;x.statPassive=statPassive(x.s);x.marg=null}
   // 持久力温存の回避に必要な回復：入手できる回復を、デッキ等→白因子の順、発動が早い順に積み、温存が起きなくなるまで必須扱い
-  const selHeal=(st.inherit||[]).map(id=>p.inhAll.find(u=>u.s.id===id)).filter(u=>u&&u.s.effect==="heal").flatMap(u=>UmaSim.planSkill(ctx,u.s,.5));
+  const selHeal=plansOf(ctx,(st.inherit||[]).map(id=>p.inhAll.find(u=>u.s.id===id)).filter(u=>u&&u.s.effect==="heal").map(u=>u.s));
   const healRows=p.rows.filter(x=>x.s.effect==="heal"&&x.route&&x.r.ok&&pinOf(x.s.id)!=="never");
-  const firstPos=x=>{const pl=UmaSim.planSkill(ctx,x.s,.5);return pl.length?pl[0].pos:1e9};
-  healRows.sort((a,b)=>(a.route.kind==="own"?0:1)-(b.route.kind==="own"?0:1)||firstPos(a)-firstPos(b)||(b.s.value||0)-(a.s.value||0));
+  healRows.sort((a,b)=>(a.route.kind==="own"?0:1)-(b.route.kind==="own"?0:1)||firstPos(ctx,a.s)-firstPos(ctx,b.s)||(b.s.value||0)-(a.s.value||0));
   let consPlans=selHeal.concat(dbOf(ctx));
   for(const x of healRows){
     const cur=UmaSim.run(p.ctxC,consPlans);
@@ -959,7 +997,7 @@ function derive(p){
   // 系統ごとに、入手できる段階の中で期待バ身が最も高いものを代表にする（同点なら合計SPが安い方）
   const chainOf=s=>D.skills.filter(x=>x.groupId===s.groupId&&p.isBuyable(x)&&(x.groupRate??1)<=(s.groupRate??1)).sort((x,y)=>(x.groupRate??1)-(y.groupRate??1));
   const groups=new Map();
-  const grpKey=x=>{if(x.route&&x.route.evo){const b=SK[x.route.evo.baseId];return b?(b.groupId||b.id):x.s.id}return x.s.owner?x.s.id:(x.s.groupId||x.s.id)};
+  const grpKey=x=>{if(x.route&&x.route.evo){const b=SK[x.route.evo.baseId];return b?gOf(b):x.s.id}return x.s.owner?x.s.id:gOf(x.s)};
   for(const x of p.rows){const g=grpKey(x);(groups.get(g)||groups.set(g,[]).get(g)).push(x)}
   const reps=[],scCands=[];
   for(const list of groups.values()){
@@ -970,11 +1008,11 @@ function derive(p){
     if(!ok.length)continue;
     // 育成ウマ娘の進化スキルは、元のスキルと同じSPで効果が上乗せされる（回復が付くなど）ため、
     // 1人走行のバ身で差が出なくても（同等・回復のみの上乗せ）進化後を採用する
-    {const ev=ok.find(x=>x.route.evo&&!x.route.evo.scenario&&x!==ok[0]&&x.expAdj>=ok[0].expAdj-0.01);
-     if(ev&&!(ok[0].route.evo&&!ok[0].route.evo.scenario)){ok.splice(ok.indexOf(ev),1);ok.unshift(ev)}}
+    {const ev=ok.find(x=>isCharaEvo(x)&&x!==ok[0]&&x.expAdj>=ok[0].expAdj-0.01);
+     if(ev&&!isCharaEvo(ok[0])){ok.splice(ok.indexOf(ev),1);ok.unshift(ev)}}
     // 進化前を採用したとき、進化先が発動しない・伸びが小さい理由を残す（進化は育成中に選べるので「進化させない」判断になる）
     ok[0].evoNote=null;
-    if(!(ok[0].route.evo&&!ok[0].route.evo.scenario)){
+    if(!isCharaEvo(ok[0])){
       // 発動しない進化先は行そのものがない（計算対象から外れている）ので、育成ウマ娘の進化の一覧から探す
       const evs=[...evoMap.values()].filter(u=>u.baseId===ok[0].s.id&&SK[u.skillId]);
       if(evs.length)ok[0].evoNote=evs.map(u=>{const e=list.find(x=>x.s.id===u.skillId);const nm=SK[u.skillId].name;
@@ -983,8 +1021,7 @@ function derive(p){
     if(ok[0].route.scEvo){
       // シナリオ進化の候補：進化しなかった場合の代わり（同じ系統でいちばん良い段階）との差を伸びとする
       // 代わり：シナリオ進化以外でいちばん良い段階。同等なら育成ウマ娘の進化後を優先（進化後は同じSPで上乗せのため）
-      const isCE=x=>x.route.evo&&!x.route.evo.scenario?1:0;
-      const alt=ok.filter(x=>!x.route.scEvo).sort((a,b)=>(b.expAdj-a.expAdj>0.01?1:a.expAdj-b.expAdj>0.01?-1:0)||(isCE(b)-isCE(a)))[0]||null;
+      const alt=ok.filter(x=>!x.route.scEvo).sort((a,b)=>(b.expAdj-a.expAdj>0.01?1:a.expAdj-b.expAdj>0.01?-1:0)||(isCharaEvo(b)-isCharaEvo(a)))[0]||null;
       for(const x of list.filter(x=>x.route&&x.route.scEvo&&x.r.ok))scCands.push({x,alt,gain:x.expAdj-(alt?alt.expAdj:0)});
     }
     reps.push(ok[0]);
@@ -994,16 +1031,16 @@ function derive(p){
   scCands.forEach((c,i)=>{c.chosen=i<2;if(!c.chosen){const k=reps.indexOf(c.x);if(k>=0){if(c.alt)reps[k]=c.alt;else reps.splice(k,1)}}});
   // 仮の段階（手持ちの判定用）。最終的な段階は summarize で、手持ちと合わせたときの値で付け直す
   // 育成ウマ娘の育成イベントで得られるヒント（必ず起きるとは限らないので経路にはせず、補記だけ）
-  {const cev=(D.charaEvents||{})[ch.id]||[];const gk=id=>{const k=SK[id];return k?(k.groupId||k.id):id};
-   const byG=new Map();for(const [sid,lv,kind,title,choice] of cev){const g=gk(sid);if(!byG.has(g))byG.set(g,[]);byG.get(g).push({name:SK[sid]?.name||"",lv,kind,title,choice})}
-   for(const x of p.rows){const l=byG.get(x.s.groupId||x.s.id);x.charaEv=l&&x.route&&x.route.kind!=="own"?l:null}}
+  {const cev=(D.charaEvents||{})[ch.id]||[];
+   const byG=new Map();for(const [sid,lv,kind,title,choice] of cev){const g=gid(sid);if(!byG.has(g))byG.set(g,[]);byG.get(g).push({name:SK[sid]?.name||"",lv,kind,title,choice})}
+   for(const x of p.rows){const l=byG.get(gOf(x.s));x.charaEv=l&&x.route&&x.route.kind!=="own"?l:null}}
   setTH(Math.max(.1,...reps.filter(x=>!x.conserveNeed).map(x=>x.expAdj)));
   for(const rep of reps)rep.tier=rep.tierBase=rep.conserveNeed?"must":tierOf(rep.expAdj);
   // 元スキルを取れないシナリオ進化（参考表示用）
   const rowOf=new Map(p.rows.map(x=>[x.s.id,x]));
   const scMissing=[...scEvoMap.values()].filter(e=>SK[e.evo]&&!scCands.some(c=>c.x.s.id===e.evo)).map(e=>({e,x:rowOf.get(e.evo)})).filter(o=>o.x&&!o.x.route).map(o=>({name:SK[o.e.evo].name,base:o.e.baseName}));
   const scDead=[...scEvoMap.values()].filter(e=>SK[e.evo]&&!rowOf.has(e.evo)).map(e=>SK[e.evo].name);
-  return{guide,reps,scEvo:{cands:scCands,missing:scMissing,dead:scDead,url:((D.scenarioEvo||{})[st.scenario]||{}).url}};
+  return{guide,reps,scEvo:{cands:scCands,missing:scMissing,dead:scDead,url:scEvoData().url}};
 }
 
 // ===== 因子周回の編成：因子化したい白スキルのヒントを持つサポカを、優先度の重みで貪欲に6枚選ぶ =====
@@ -1012,13 +1049,8 @@ function farmDeck(fac){
   fac.top.forEach(x=>W.set(x.s.id,3));fac.high.forEach(x=>{if(!W.has(x.s.id))W.set(x.s.id,2)});fac.norm.forEach(x=>{if(!W.has(x.s.id))W.set(x.s.id,1)});
   if(!W.size)return null;
   // 系統（○と◎）は同じ因子として扱う：グループの白スキルならどれのヒントでも可
-  const grpOf=id=>{const k=SK[id];return k?(k.groupId||k.id):id};
-  const want=new Map();for(const [id,w] of W)want.set(grpOf(id),{w,id});
-  const cards=D.supports.filter(sp=>sp.rarity!=="R").map(sp=>{
-    const ids=new Set([...sp.skillIds,...(sp.eventSkillIds||[])].filter(id=>{const k=SK[id];return k&&k.rarity==="white"}));
-    const g=new Set([...ids].map(grpOf).filter(x=>want.has(x)));
-    return{sp,g};
-  }).filter(c=>c.g.size);
+  const want=new Map();for(const [id,w] of W)want.set(gid(id),{w,id});
+  const cards=D.supports.filter(sp=>sp.rarity!=="R").map(sp=>({sp,g:new Set(whiteGroups(sp).filter(x=>want.has(x)))})).filter(c=>c.g.size);
   const picked=[],covered=new Set();
   for(let n=0;n<6&&cards.length;n++){
     let best=null,bs=0;
@@ -1026,7 +1058,7 @@ function farmDeck(fac){
     if(!best||bs<1)break;
     picked.push(best);best.newG=[...best.g].filter(g=>!covered.has(g));best.newG.forEach(g=>covered.add(g));
   }
-  const tierCount=t=>{const list=fac[t];return{all:list.length,hit:list.filter(x=>covered.has(grpOf(x.s.id))).length}};
+  const tierCount=t=>{const list=fac[t];return{all:list.length,hit:list.filter(x=>covered.has(gid(x.s.id))).length}};
   // その他の候補：デッキ案に入らなかったカードで、因子化したいスキルのヒントを2種類以上持つもの（重みの合計順に最大10枚）
   const others=cards.filter(c=>!picked.includes(c)&&c.g.size>=2).map(c=>({...c,score:[...c.g].reduce((t,g)=>t+want.get(g).w,0)+(c.sp.rarity==="SSR"?0.01:0)}))
     .sort((a,b)=>b.score-a.score||b.g.size-a.g.size).slice(0,10);
@@ -1035,7 +1067,7 @@ function farmDeck(fac){
 
 // 因子周回デッキのカバー判定：因子化するスキルごとに、ヒント（トレーニング・イベント）で持っているカードの名前。○と◎は同じ系統として扱う
 function facRowHtml(label,cls,list,cap,fcov){
-  return `<div class="facrow"><span class="ftier ${cls}">${label}<small>${list.length}/${cap}</small></span><div class="chips">${list.length?list.map(x=>{const c=fcov&&fcov.who.get(x.s.id);return`<span class="chip${c?" cov":""}" data-sid="${x.s.id}"${c?` title="${esc(c.join("・"))}"`:""}>${esc(x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name)} <b>${(x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj).toFixed(2)}</b>${c?`<i>${esc(c.join("・"))}</i>`:""}${x.charaEv?`<em class="cev" title="${esc(x.charaEv.map(e=>`「${e.title}」${e.choice?"の「"+e.choice+"」":""}で${e.name} Lv${e.lv}`).join("／"))}">イベ</em>`:""}</span>`}).join(""):'<span class="hint">なし</span>'}</div></div>`;
+  return `<div class="facrow"><span class="ftier ${cls}">${label}<small>${list.length}/${cap}</small></span><div class="chips">${list.length?list.map(x=>{const c=fcov&&fcov.who.get(x.s.id);return`<span class="chip${c?" cov":""}" data-sid="${x.s.id}"${c?` title="${esc(c.join("・"))}"`:""}>${esc(facName(x))} <b>${tierVal(x).toFixed(2)}</b>${c?`<i>${esc(c.join("・"))}</i>`:""}${x.charaEv?`<em class="cev" title="${esc(x.charaEv.map(e=>`「${e.title}」${e.choice?"の「"+e.choice+"」":""}で${e.name} Lv${e.lv}`).join("／"))}">イベ</em>`:""}</span>`}).join(""):'<span class="hint">なし</span>'}</div></div>`;
 }
 const covLine=f=>f?`<p class="hint covline">因子周回デッキのカバー：超優先 ${f.tc.top.hit}/${f.tc.top.all}・優先 ${f.tc.high.hit}/${f.tc.high.all}・通常 ${f.tc.norm.hit}/${f.tc.norm.all}（緑の背景がカバー済み）${f.miss.length?`<br>カバーできていない超優先・優先：${f.miss.map(x=>esc(x.s.name)).join("・")}`:""}</p>`:"";
 // pure-db（uma.pure-db.com）のフレンド検索URL：検索条件のJSONをBase64にして searchInfo に入れる形式。
@@ -1052,12 +1084,11 @@ function pureDbBox(fac){
   // レース中に発動するスキルの因子は、シナリオ由来のもの（レースの真髄など）も含めて、すべて白因子（共通）で探せる
   const ok=list;
   if(!ok.length)return"";
-  const nm=x=>x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name;
   const def=new Set(ok.filter(x=>fac.top.includes(x)).slice(0,3).map(x=>x.s.groupId));
   return `<details class="pdb"><summary>ウマ娘DBでレンタルの因子を探す</summary>
     <p class="hint">チェックした因子を白因子（共通）に入れた状態で、ウマ娘DB（uma.pure-db.com）のフレンド検索を開きます。すべてを満たす人だけが出るので、2〜3個から試すのがおすすめです。</p>
     <div class="pdb-type"><span class="hint">因子の場所：</span>${PDB_TYPES.map(([v,l])=>`<label><input type="radio" name="pdbType" value="${v}"${String(st.pdbType||0)===v?" checked":""}> ${l}</label>`).join("")}</div>
-    <div class="pdb-list">${ok.map(x=>`<label><input type="checkbox" data-pdb="${x.s.groupId}"${def.has(x.s.groupId)?" checked":""}> ${esc(nm(x))}</label>`).join("")}</div>
+    <div class="pdb-list">${ok.map(x=>`<label><input type="checkbox" data-pdb="${x.s.groupId}"${def.has(x.s.groupId)?" checked":""}> ${esc(facName(x))}</label>`).join("")}</div>
     <div class="btnrow"><a class="btn primary grow" id="pdbGo" href="${pureDbUrl([...def])}" target="_blank" rel="noopener">ウマ娘DBで検索する（${def.size}件）</a></div></details>`;
 }
 document.addEventListener("change",e=>{if(!e.target.matches)return;
@@ -1068,25 +1099,24 @@ document.addEventListener("change",e=>{if(!e.target.matches)return;
 // 因子周回デッキの枠i（フレンド枠を含む1〜6枚目）に入れるおすすめ：ほかの枠ですでに拾えるヒントを除いて、因子化したいスキルのヒントを多く足せるカード（最大10枚）
 function farmRec(i){
   if(!lastM||!lastM.fac)return null;
-  const fac=lastM.fac,grpOf=id=>{const k=SK[id];return k?(k.groupId||k.id):id};
-  const want=new Map();for(const [t,w] of [["top",3],["high",2],["norm",1]])for(const x of fac[t]){const g=grpOf(x.s.id);if(!want.has(g))want.set(g,{w,name:x.route&&x.route.viaLow?x.route.viaLow:x.s.name})}
+  const fac=lastM.fac;
+  const want=new Map();for(const [t,w] of [["top",3],["high",2],["norm",1]])for(const x of fac[t]){const g=gid(x.s.id);if(!want.has(g))want.set(g,{w,name:x.route&&x.route.viaLow?x.route.viaLow:x.s.name})}
   if(!want.size)return null;
   const others=(st.farmDeck||[]).filter((id,k)=>k!==i&&id).map(id=>SP[id]).filter(Boolean);
-  const covered=new Set(others.flatMap(cd=>[...cd.skillIds,...(cd.eventSkillIds||[])]).filter(id=>SK[id]&&SK[id].rarity==="white").map(grpOf));
+  const covered=new Set(others.flatMap(whiteGroups));
   const names=new Set(others.map(cd=>cd.name));
   return D.supports.filter(sp=>sp.rarity!=="R"&&!names.has(sp.name)).map(sp=>{
-    const g=[...new Set([...sp.skillIds,...(sp.eventSkillIds||[])].filter(id=>SK[id]&&SK[id].rarity==="white").map(grpOf))].filter(x=>want.has(x)&&!covered.has(x));
+    const g=[...new Set(whiteGroups(sp))].filter(x=>want.has(x)&&!covered.has(x));
     return{sp,score:g.reduce((t,x)=>t+want.get(x).w,0)+(sp.rarity==="SSR"?0.01:0),names:g.sort((a,b)=>want.get(b).w-want.get(a).w).map(x=>want.get(x).name)};
   }).filter(r=>r.score>=1).sort((a,b)=>b.score-a.score).slice(0,10);
 }
 function farmCover(fac,ids){
   const cards=(ids||[]).map(id=>SP[id]).filter(Boolean);
   if(!cards.length||!fac)return null;
-  const grpOf=id=>{const k=SK[id];return k?(k.groupId||k.id):id};
   const byG=new Map();
-  for(const cd of cards)for(const id of new Set([...cd.skillIds,...(cd.eventSkillIds||[])])){const k=SK[id];if(!k||k.rarity!=="white")continue;const g=grpOf(id);if(!byG.has(g))byG.set(g,[]);if(!byG.get(g).includes(cd.name))byG.get(g).push(cd.name)}
+  for(const cd of cards)for(const g of whiteGroups(cd)){if(!byG.has(g))byG.set(g,[]);if(!byG.get(g).includes(cd.name))byG.get(g).push(cd.name)}
   const who=new Map();
-  for(const t of ["top","high","norm"])for(const x of fac[t]){const c=byG.get(grpOf(x.s.id));if(c)who.set(x.s.id,c)}
+  for(const t of ["top","high","norm"])for(const x of fac[t]){const c=byG.get(gid(x.s.id));if(c)who.set(x.s.id,c)}
   const cnt=t=>({all:fac[t].length,hit:fac[t].filter(x=>who.has(x.s.id)).length});
   return{who,tc:{top:cnt("top"),high:cnt("high"),norm:cnt("norm")},miss:[...fac.top,...fac.high].filter(x=>!who.has(x.s.id))};
 }
@@ -1097,18 +1127,16 @@ function summarize(p,d){
   const byId=new Map(p.inhAll.map(u=>[u.s.id,u]));
   st.inherit=(st.inherit||[]).filter(id=>byId.has(id)).slice(0,6);
   const sel=st.inherit.map(id=>byId.get(id));
-  const selHeal=sel.filter(u=>u.s.effect==="heal").flatMap(u=>UmaSim.planSkill(ctx,u.s,.5));
-  const ownHeals=d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.route.kind==="own"&&x.r.ok&&pinOf(x.s.id)!=="never").flatMap(x=>UmaSim.planSkill(ctx,x.s,.5));
+  const selHeal=plansOf(ctx,sel.filter(u=>u.s.effect==="heal").map(u=>u.s));
+  const ownHeals=plansOf(ctx,d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.route.kind==="own"&&x.r.ok&&pinOf(x.s.id)!=="never").map(x=>x.s));
   const healPlans=ownHeals.concat(selHeal);
   const m0heal=ownHeals;
   const dbf=dbOf(ctx);
   const noHeal=UmaSim.run(p.ctxC,dbf),withOwn=UmaSim.run(p.ctxC,healPlans.concat(dbf)),rushOwn=UmaSim.run(p.ctxRush,healPlans.concat(dbf));
   // デバフ耐性：手持ちの回復（＋選んだ継承固有）で、−3%級をあと何本まで受けても持久力温存が起きないか（設定の本数に上乗せ）
-  let dbTol=-1;
-  if(withOwn.conserveAt==null){dbTol=0;for(let k=1;k<=12;k++){if(UmaSim.run(p.ctxC,healPlans.concat(dbf,debuffPlans(ctx,k,0))).conserveAt!=null)break;dbTol=k}}
+  const dbTol=debuffTolerance(p,withOwn,healPlans.concat(dbf));
   const dbSet={gold:(st.debuff||{}).gold|0,white:(st.debuff||{}).white|0};
-  const short=r=>r.conserveAt==null?0:r.conserveShort;
-  const deficit=short(withOwn),deficitNoHeal=short(noHeal),deficitRush=short(rushOwn);
+  const deficit=shortOf(withOwn),deficitNoHeal=shortOf(noHeal),deficitRush=shortOf(rushOwn);
   const unit=withOwn.maxHP*0.055; // 金回復1個（最大体力の5.5%）
   // 加速：手持ち（デッキ・固有・シナリオ・イベント・選んだ継承固有）の終盤加速を入れたとき、最高速度に届く地点がどこまで早まるか。
   // さらに白因子の加速を1個足したときの期待バ身が「推奨」未満なら、加速は足りていると判定する
@@ -1120,16 +1148,13 @@ function summarize(p,d){
   const ownAcc=S.randAccelSafe?ownAccAll.filter(x=>!x.r.random):ownAccAll;
   const ownAccRand=ownAccAll.length-ownAcc.length;
   const selAcc=sel.filter(u=>lateAccel(u)&&u.exp>=TH.opt);
-  const accPlans=ownAcc.flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)).concat(selAcc.flatMap(u=>UmaSim.planSkill(ctx,u.s,.5)));
-  const baseA=healPlans.concat(accPlans);
-  const reach0=UmaSim.run(ctx,healPlans),reach1=UmaSim.run(ctx,baseA);
-  const runA=UmaSim.run(ctx,baseA);
+  const baseA=healPlans.concat(plansOf(ctx,ownAcc.map(x=>x.s)),plansOf(ctx,selAcc.map(u=>u.s)));
+  const reach0=UmaSim.run(ctx,healPlans),reach1=UmaSim.run(ctx,baseA),runA=reach1;
   const inhAcc=d.reps.filter(x=>lateAccel(x)&&x.route.kind==="inh"&&x.r.ok);
   for(const x of d.reps){x.tier=x.tierBase;x.marg=null}
   let bestNext=0;
   for(const x of inhAcc){
-    const r=UmaSim.skillBashin(ctx,x.s,{noHeal:true,base:runA,basePlans:baseA,samples:Math.min(6,S.samples)});
-    x.marg=r.ok?mOf(x.s,r)*p.rate*(r.folded?1:(r.prob??1)):0;
+    x.marg=expVal(x.s,addBashin(ctx,x.s,baseA,runA),p.rate);
     x.tier=tierOf(Math.min(x.expAdj,x.marg));
     bestNext=Math.max(bestNext,x.marg);
   }
@@ -1139,14 +1164,12 @@ function summarize(p,d){
   // 因子化の候補：手持ち（デッキ・固有・初期/覚醒・シナリオ・イベント・進化で取る推奨以上のスキル）と選んだ継承固有を入れて走らせ、
   // そこに足したときに増える分で評価し直す（同じタイミングで効果が重なるスキルは低く出る）
   {
-    const isPas=k=>(k.ep||[]).length>0&&k.ep.every(q=>q.baseTime<0);
     const ownTaken=d.reps.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok&&x.s.effect!=="heal"&&pinOf(x.s.id)!=="never"&&(x.tierBase==="must"||x.tierBase==="rec"));
-    const baseAll=healPlans.concat(ownTaken.flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)),sel.filter(u=>u.s.effect!=="heal").flatMap(u=>UmaSim.planSkill(ctx,u.s,.5)));
+    const baseAll=healPlans.concat(plansOf(ctx,ownTaken.map(x=>x.s)),plansOf(ctx,sel.filter(u=>u.s.effect!=="heal").map(u=>u.s)));
     const runAll=UmaSim.run(ctx,baseAll);
     for(const x of d.reps){
       if(!(x.route&&x.route.kind==="inh"&&x.r.ok&&x.s.effect!=="heal"&&x.tierBase!=="none"))continue;
-      const r=UmaSim.skillBashin(ctx,x.s,{noHeal:true,base:runAll,basePlans:baseAll,samples:Math.min(6,S.samples)});
-      x.marg=r.ok?mOf(x.s,r)*(isPas(x.s)?1:p.rate)*(x.field?.5:1)*(r.folded?1:(r.prob??1)):0;
+      x.marg=expVal(x.s,addBashin(ctx,x.s,baseAll,runAll),p.rate,{passive:isPassive(x.s),field:x.field});
       x.tier=tierOf(Math.min(x.expAdj,x.marg));
     }
     // 加速の過不足：白因子の加速をもう1個足したときの伸びと、加速以外で因子化できるいちばん良いスキルの伸びを比べる（どちらも手持ちと合わせたときの増える分）。
@@ -1160,18 +1183,16 @@ function summarize(p,d){
   }
   // スキル判定の段階を最終決定：表示する値（白因子は手持ちと合わせたときに増える分）のうちいちばん高いものを基準にする
   {
-    const tv=x=>x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj;
-    setTH(Math.max(.1,...d.reps.filter(x=>!x.conserveNeed&&x.route&&x.r.ok).map(tv)));
-    for(const x of d.reps){x.tierV=tv(x);x.tier=x.conserveNeed?"must":tierOf(x.tierV)}
+    setTH(Math.max(.1,...d.reps.filter(x=>!x.conserveNeed&&x.route&&x.r.ok).map(tierVal)));
+    for(const x of d.reps){x.tierV=tierVal(x);x.tier=x.conserveNeed?"must":tierOf(x.tierV)}
   }
   // 継承固有の候補：単独の評価で上位24件（同名は1件）を、手持ち（推奨以上のスキルと回復）と合わせて走らせたときに増える分で評価し直す。
   // おすすめ6件は、選んだものを順に積み上げながら1件ずつ選ぶ（加速どうしなど効果が重なるものは後回しになる）
-  const isPasI=k=>(k.ep||[]).length>0&&k.ep.every(q=>q.baseTime<0);
   const ownTakenI=d.reps.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok&&x.s.effect!=="heal"&&(x.tierBase==="must"||x.tierBase==="rec"));
-  let baseI=m0heal.concat(ownTakenI.flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)));
+  let baseI=m0heal.concat(plansOf(ctx,ownTakenI.map(x=>x.s)));
   const pool=[];const seenN=new Set();
   for(const u of p.inhAll){if(u.exp<=0.02||seenN.has(u.s.name))continue;seenN.add(u.s.name);pool.push(u);if(pool.length>=24)break}
-  const margI=(u,plans,run)=>{const r=UmaSim.skillBashin(ctx,u.s,{noHeal:true,base:run,basePlans:plans,samples:Math.min(6,S.samples)});return r.ok?mOf(u.s,r)*(isPasI(u.s)?1:p.rate)*(r.folded?1:(r.prob??1)):0};
+  const margI=(u,plans,run)=>expVal(u.s,addBashin(ctx,u.s,plans,run),p.rate,{passive:isPassive(u.s)});
   let runI=UmaSim.run(ctx,baseI);
   for(const u of pool)u.mexp=margI(u,baseI,runI);
   const recIds=[];let left=pool.slice();
@@ -1192,14 +1213,14 @@ function summarize(p,d){
   if(lt(a.style))red.push(`脚質（${st.style}）${a.style}→A`);
   const blue=deficit>0?`スタミナ（デッキ・固有・選んだ継承固有の回復だけでは、中盤で持久力温存が起きる。体力が約${Math.round(deficit)}足りない）`:"スピード（持久力温存は起きない見込み）";
   // 因子化する白スキルの優先度（超優先15件・優先20件・通常は設定の上限（25〜40件、初期値35）まで）
-  const facV=x=>x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj;
+  const facV=tierVal;
   // 因子化の段階：このプランでいちばん伸びる白因子スキルを基準に、70%以上＝超優先、40%以上＝優先、それ未満で0.1バ身以上＝通常。
   // 持久力温存の回避に必要な回復は、伸びに関係なく超優先
   // 「取らない」に指定したスキルは因子化の候補から外す（周回デッキ案・カバー判定・チーム比較・ウマ娘DB検索にも反映される）
   const inhW=d.reps.filter(x=>x.route.kind==="inh"&&x.r.ok&&pinOf(x.s.id)!=="never"&&(x.conserveNeed||facV(x)>=0.1)&&!(S.passSpdOnly&&x.statPassive)&&!(S.lotteryOut&&isLottery(x.s))).sort((q,r)=>(r.conserveNeed-q.conserveNeed)||facV(r)-facV(q));
   const facBest=Math.max(0,...inhW.filter(x=>!x.conserveNeed).map(facV));
   const facTier=x=>x.conserveNeed||facV(x)>=facBest*0.7?"top":facV(x)>=facBest*0.4?"high":"norm";
-  const fac={top:inhW.filter(x=>facTier(x)==="top").slice(0,15),high:inhW.filter(x=>facTier(x)==="high").slice(0,20),norm:inhW.filter(x=>facTier(x)==="norm").slice(0,Math.max(25,Math.min(40,Math.round(S.facNorm||35)))),best:facBest};
+  const fac={top:inhW.filter(x=>facTier(x)==="top").slice(0,15),high:inhW.filter(x=>facTier(x)==="high").slice(0,20),norm:inhW.filter(x=>facTier(x)==="norm").slice(0,facNormCap()),best:facBest};
   return{dbTol,dbSet,noHeal,withOwn,deficit,deficitNoHeal,deficitRush,unit,rushChance:withOwn.rushedChance,accelOwn,accelInh,accel,cands,recIds,sel,red,blue,fac,farm:farmDeck(fac),healPlans};
 }
 
@@ -1222,20 +1243,25 @@ function skillCost(x){
   return (x.chain||[x.s]).filter(k=>k.id===x.s.id||rk[k.id]!==0).reduce((t,k)=>t+Math.round((k.sp||0)*(1-d(lvOf(k)))),0);
 }
 // 自分の体力を使う効果（アグレッシブの−2%など）を持つか。他のウマ娘にかかるデバフと、「すごく使ってしまうことがある」型の大きな消費は除く
+// デバフ耐性：今の計画（plans、設定のデバフ込み）に、−3%級をあと何本足しても持久力温存が起きないか（-1＝今の時点で起きる）
+function debuffTolerance(p,cur,plans){
+  if(cur.conserveAt!=null)return -1;
+  let n=0;for(let k=1;k<=12;k++){if(UmaSim.run(p.ctxC,plans.concat(debuffPlans(p.ctx,k,0))).conserveAt!=null)break;n=k}
+  return n;
+}
 const selfHpCost=s=>(s.ep||[]).some(q=>(q.effects||[]).some(e=>e.target===9&&e.value<0&&e.value>-5000&&(e.rangeType==null||e.rangeType===1)));
 function staRecheck(p,d,m,L,noAdd){
   const ctx=p.ctx;
   const cs=[...new Map([...L.picked.filter(k=>!k.forced).map(k=>k.x.s),...m.sel.map(u=>u.s)].filter(selfHpCost).map(s=>[s.id,s])).values()];
   m.costNames=cs.map(s=>s.name);m.costHp=0;
   if(!cs.length)return false;
-  const costPlans=cs.flatMap(s=>UmaSim.planSkill(ctx,s,.5)).filter(pl=>!pl.passive).map(pl=>({...pl,effects:pl.effects.filter(e=>e.target===9&&e.value<0)})).filter(pl=>pl.effects.length);
+  const costPlans=plansOf(ctx,cs).filter(pl=>!pl.passive).map(pl=>({...pl,effects:pl.effects.filter(e=>e.target===9&&e.value<0)})).filter(pl=>pl.effects.length);
   m.costHp=-costPlans.reduce((t,pl)=>t+pl.effects.reduce((a,e)=>a+e.value/10000,0),0);
   const dbf=dbOf(ctx);
-  const firstPos=x=>{const pl=UmaSim.planSkill(ctx,x.s,.5);return pl.length?pl[0].pos:1e9};
   let added=false;
   if(!noAdd){
-    let base=m.healPlans.concat(d.reps.filter(x=>x.conserveNeed&&x.route&&x.route.kind!=="own").flatMap(x=>UmaSim.planSkill(ctx,x.s,.5)),dbf,costPlans);
-    const cands=d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.r.ok&&x.route.kind!=="own"&&!x.conserveNeed).sort((a,b)=>firstPos(a)-firstPos(b)||(b.s.value||0)-(a.s.value||0));
+    let base=m.healPlans.concat(plansOf(ctx,d.reps.filter(x=>x.conserveNeed&&x.route&&x.route.kind!=="own").map(x=>x.s)),dbf,costPlans);
+    const cands=d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.r.ok&&x.route.kind!=="own"&&!x.conserveNeed).sort((a,b)=>firstPos(ctx,a.s)-firstPos(ctx,b.s)||(b.s.value||0)-(a.s.value||0));
     for(const x of cands){
       const cur=UmaSim.run(p.ctxC,base);if(cur.conserveAt==null)break;
       const pl=UmaSim.planSkill(ctx,x.s,.5);if(!pl.length)continue;
@@ -1243,11 +1269,9 @@ function staRecheck(p,d,m,L,noAdd){
     }
   }
   const withC=m.healPlans.concat(dbf,costPlans);
-  const short=r=>r.conserveAt==null?0:r.conserveShort;
   m.noHeal=UmaSim.run(p.ctxC,dbf.concat(costPlans));m.withOwn=UmaSim.run(p.ctxC,withC);
-  m.deficit=short(m.withOwn);m.deficitNoHeal=short(m.noHeal);m.deficitRush=short(UmaSim.run(p.ctxRush,withC));m.rushChance=m.withOwn.rushedChance;
-  m.dbTol=-1;
-  if(m.withOwn.conserveAt==null){m.dbTol=0;for(let k=1;k<=12;k++){if(UmaSim.run(p.ctxC,withC.concat(debuffPlans(ctx,k,0))).conserveAt!=null)break;m.dbTol=k}}
+  m.deficit=shortOf(m.withOwn);m.deficitNoHeal=shortOf(m.noHeal);m.deficitRush=shortOf(UmaSim.run(p.ctxRush,withC));m.rushChance=m.withOwn.rushedChance;
+  m.dbTol=debuffTolerance(p,m.withOwn,withC);
   return added;
 }
 // スキル判定の段階をおすすめ構成と連動させる：構成に入るスキル＝推奨以上、そのうち積み上げの伸びが大きい上位3分の1＝必須
@@ -1293,19 +1317,24 @@ function tierByLoadout(d,L){
   }
   return{nMust,n:ranked.length};
 }
+// おすすめ構成を組み、構成に入った「体力を使うスキル」の消費でスタミナを判定し直す。
+// 回復が足りなくなったら回復を足して、集計と構成をやり直す
+function loadoutWithStamina(p,d,m){
+  let L=buildLoadout(p,d,m);
+  if(staRecheck(p,d,m,L)){m=summarize(p,d);L=buildLoadout(p,d,m);staRecheck(p,d,m,L,true)}
+  return{m,L};
+}
 function buildLoadout(p,d,m,ownOnly){
   const ctx=p.ctx,budget=st.spBudget??3000;
-  const isPassive=s=>(s.ep||[]).length>0&&s.ep.every(q=>q.baseTime<0);
-  const valOf=(x,plans,baseRun)=>{const r=UmaSim.skillBashin(ctx,x.s,{noHeal:true,base:baseRun,basePlans:plans,samples:Math.min(6,S.samples)});
-    return r.ok?mOf(x.s,r)*(isPassive(x.s)?1:p.rate)*(x.field?.5:1)*(r.folded?1:(r.prob??1)):0};
+  const valOf=(x,plans,baseRun)=>expVal(x.s,addBashin(ctx,x.s,plans,baseRun),p.rate,{passive:isPassive(x.s),field:x.field});
   const inhCost=Math.round(200*(1-Math.min(.9,(HINT_DISC[S.hintInh]||0)+condDisc())));
-  let plans=m.sel.flatMap(u=>UmaSim.planSkill(ctx,u.s,.5));
+  let plans=plansOf(ctx,m.sel.map(u=>u.s));
   let used=m.sel.length*inhCost;
   const picked=[];
   // 持久力温存の回避に必要な回復は先に入れる
   for(const x of d.reps.filter(x=>x.conserveNeed)){const c=skillCost(x)??0;plans=plans.concat(UmaSim.planSkill(ctx,x.s,.5));used+=c;picked.push({x,cost:c,gain:null,forced:true})}
   // 自分で「必ず取る」に指定したスキル（同じ系統の代表を入れる）。「取らない」に指定したものは候補から外す
-  const pin=pinsNow(),gk=s=>s.groupId||s.id;
+  const pin=pinsNow(),gk=gOf;
   const mustG=new Set(pin.must.map(id=>SK[id]).filter(Boolean).map(gk)),neverG=new Set(pin.never.map(id=>SK[id]).filter(Boolean).map(gk));
   const pinMissing=[];
   for(const id of pin.must){const k=SK[id];if(!k)continue;const x=d.reps.find(r=>gk(r.s)===gk(k));
@@ -1352,6 +1381,7 @@ function connectInfo(ctx,s){
   if(!any||hit<1)return null;
   return{rate:hit/n,rem:rem/hit};
 }
+const connBadge=c=>c.rate>=0.99?'<span class="cbadge sure">確定</span>':'<span class="cbadge maybe">約'+Math.round(c.rate*100)+'%</span>';
 function skRow(x){
   const s=x.s,meta=[EFFECT_JA[s.effect]||"その他"];
   if(ZONE_JA[s.zone])meta.push(ZONE_JA[s.zone]);
@@ -1386,12 +1416,12 @@ function skRow(x){
 
 /* ---------- 5. 因子周回 ---------- */
 function renderFarm(){
-  st.farmDeck=Array.isArray(st.farmDeck)?st.farmDeck.concat([null,null,null,null,null,null]).slice(0,6):[null,null,null,null,null,null];
+  st.farmDeck=Array.isArray(st.farmDeck)?pad6(st.farmDeck):emptyDeck();
   renderDeckInto($("#farmSlots"),st.farmDeck,()=>{persist();renderFarm()},i=>farmRec(i));
   const out=$("#farmCov");
   if(planDirty||!lastPlan||!lastM){out.innerHTML=`<div class="card"><div class="card-b"><p class="hint">カバーの判定には、プランの「因子化するスキル」を使います。条件を変えたあとは、先にプランを作成してください。</p><div class="btnrow"><button class="btn primary grow" type="button" data-go2="plan">プランを作成</button></div></div></div>`;
     out.querySelector("[data-go2]").addEventListener("click",()=>setStep("plan"));return}
-  const fac=lastM.fac,f=farmCover(fac,st.farmDeck),cap=Math.max(25,Math.min(40,Math.round(S.facNorm||35)));
+  const fac=lastM.fac,f=farmCover(fac,st.farmDeck),cap=facNormCap();
   out.innerHTML=`<div class="card"><div class="card-h"><span class="mk"></span><h2>因子化するスキルのカバー</h2></div><div class="card-b">
     ${f?covLine(f):'<p class="hint">因子周回デッキを設定すると、カバーできているスキルを緑の背景で表示します。</p>'}
     ${facRowHtml("超優先","ft-top",fac.top,15,f)}${facRowHtml("優先","ft-high",fac.high,20,f)}${facRowHtml("通常","ft-norm",fac.norm,cap,f)}
@@ -1400,9 +1430,9 @@ function renderFarm(){
 $("#farmFromPlan").addEventListener("click",()=>{
   const fm=lastM&&lastM.farm;
   if(!fm||!fm.picked.length){toast("先にプランを作成してください");return}
-  st.farmDeck=fm.picked.map(c=>c.sp.id).concat([null,null,null,null,null,null]).slice(0,6);persist();renderFarm();toast("デッキ案を入れました");
+  st.farmDeck=pad6(fm.picked.map(c=>c.sp.id));persist();renderFarm();toast("デッキ案を入れました");
 });
-$("#farmClear").addEventListener("click",()=>{st.farmDeck=[null,null,null,null,null,null];persist();renderFarm()});
+$("#farmClear").addEventListener("click",()=>{st.farmDeck=emptyDeck();persist();renderFarm()});
 
 /* ---------- 6. チーム ---------- */
 const MAIN_LABEL=()=>{const c=chara();return c?`${c.title}${c.name}`:"（未選択）"};
@@ -1414,9 +1444,7 @@ function renderTeam(){
   $("#teamMembers").innerHTML=rowMain+rows;
   st.team.forEach((m,i)=>seg($(`[data-tseg="${i}"]`),STYLES,m.style,v=>{m.style=v;persist()}));
   $("#teamMembers").querySelectorAll("[data-tpick]").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.tpick;
-    const items=D.charas.map(c=>({c,search:`${c.name}${c.title}${c.nickname}`}));
-    openPicker({title:"ウマ娘を選ぶ",items,render:it=>`<span><span class="t">${esc(it.c.title)}</span><span class="n">${esc(it.c.name)}</span></span>`,
-      onPick:it=>{st.team[i].charaId=it.c.id;persist();renderTeam()}})}));
+    pickChara("ウマ娘を選ぶ",c=>{st.team[i].charaId=c.id;persist();renderTeam()})}));
   $("#teamMembers").querySelectorAll("[data-tdel]").forEach(b=>b.addEventListener("click",()=>{st.team.splice(+b.dataset.tdel,1);persist();renderTeam()}));
   $("#teamAdd").disabled=st.team.length>=2;
 }
@@ -1435,9 +1463,8 @@ async function planFor(charaId,style,onProgress){
     const p=await computePlan(onProgress);
     const d=derive(p);let m=summarize(p,d);
     if(!st.inherit.length&&m.recIds&&m.recIds.length){st.inherit=m.recIds.slice(0,6);m=summarize(p,d)}
-    let L=buildLoadout(p,d,m);if(staRecheck(p,d,m,L)){m=summarize(p,d);L=buildLoadout(p,d,m);staRecheck(p,d,m,L,true)}
-    const nm=x=>x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name;
-    const fac=new Map();for(const t of ["top","high","norm"])for(const x of m.fac[t])fac.set(x.s.groupId||x.s.id,{t,name:nm(x),v:x.marg!=null?Math.min(x.expAdj,x.marg):x.expAdj,heal:!!x.conserveNeed,id:x.s.id});
+    ({m}=loadoutWithStamina(p,d,m));
+    const fac=new Map();for(const t of ["top","high","norm"])for(const x of m.fac[t])fac.set(gOf(x.s),{t,name:facName(x),v:tierVal(x),heal:!!x.conserveNeed,id:x.s.id});
     return{c,style,fac,dropped,accelOk:m.accel.ok,deficit:m.deficit,deficitNoHeal:m.deficitNoHeal,inh:st.inherit.map(id=>p.inhAll.find(u=>u.s.id===id)).filter(Boolean).map(u=>u.s.name)};
   }finally{Object.assign(st,keep)}
 }
@@ -1446,16 +1473,16 @@ async function runTeam(){
   const mem=[{charaId:st.charaId,style:st.style},...(st.team||[]).filter(m=>m.charaId)];
   if(mem.length<2){toast("2人目のウマ娘を選んでください");return}
   if(computing)return;computing=true;
-  out.innerHTML=`<div class="progress"><span id="tlab">計算中…</span><div class="bar"><i id="tbar"></i></div></div>`;
+  out.innerHTML=progressHtml("計算中…","tbar");
   const res=[];
   try{
     for(let i=0;i<mem.length;i++){
       $("#tlab").textContent=`計算中…（${i+1}/${mem.length}人目）`;
-      res.push(await planFor(mem[i].charaId,mem[i].style,f=>{const b=$("#tbar");if(b)b.style.width=Math.round((i+f)/mem.length*100)+"%"}));
+      res.push(await planFor(mem[i].charaId,mem[i].style,f=>barTo("tbar",(i+f)/mem.length)));
       await new Promise(r=>setTimeout(r));
     }
     out.innerHTML=teamHtml(res);
-  }catch(e){console.error(e);out.innerHTML=`<div class="progress" style="color:var(--must)">計算中にエラーが起きました。</div>`}
+  }catch(e){console.error(e);out.innerHTML=errorHtml()}
   finally{computing=false}
 }
 $("#teamRun").addEventListener("click",runTeam);
@@ -1487,20 +1514,18 @@ function renderVerify(){
   $("#vSlots").innerHTML=st.deck.map((id,i)=>{const cd=SP[id];return`<button type="button" data-vs="${i}" aria-pressed="${v.slot===i}"><span class="t">枠${i+1}${i===5?"（フレンド）":""}${cd?"・"+esc(cd.rarity+" "+cd.type):""}</span><span class="n">${cd?esc(cd.name):"（空き）"}</span></button>`}).join("");
   $("#vSlots").querySelectorAll("[data-vs]").forEach(b=>b.addEventListener("click",()=>{v.slot=+b.dataset.vs;persist();renderVerify()}));
   const cd=SP[v.cand];
-  $("#vCand").innerHTML=`<button class="pick" type="button" id="vPick">${cd?`<span class="type" style="background:${TYPE_COLOR[cd.type]||"#999"};color:#fff;font-size:11px;font-weight:800;padding:1px 6px;border-radius:999px">${esc(cd.rarity)} ${esc(cd.type)}</span><span><span class="t">${esc(cd.title)}</span><span class="n">${esc(cd.name)}</span></span>`:`<span class="n" style="color:var(--muted)">カードを選ぶ</span>`}<span class="chg">${cd?"変更 ›":"選ぶ ›"}</span></button>`;
+  $("#vCand").innerHTML=`<button class="pick" type="button" id="vPick">${cd?`<span class="type" style="background:${typeColor(cd.type)};color:#fff;font-size:11px;font-weight:800;padding:1px 6px;border-radius:999px">${esc(cd.rarity)} ${esc(cd.type)}</span><span><span class="t">${esc(cd.title)}</span><span class="n">${esc(cd.name)}</span></span>`:`<span class="n" style="color:var(--muted)">カードを選ぶ</span>`}<span class="chg">${cd?"変更 ›":"選ぶ ›"}</span></button>`;
   $("#vPick").addEventListener("click",()=>{
-    const items=D.supports.filter(s=>s.rarity!=="R").map(s=>({s,search:`${s.name}${s.title}`}));
-    openPicker({title:"候補のカード",items,
-      filters:{opts:["すべて","スピード","スタミナ","パワー","根性","賢さ","友人","グループ"],test:(it,f)=>it.s.type===f},
-      render:it=>`<span class="type" style="background:${TYPE_COLOR[it.s.type]||"#999"}">${esc(it.s.rarity)}</span><span><span class="t">${esc(it.s.title)}</span><span class="n">${esc(it.s.name)}</span></span>`,
+    openPicker({title:"候補のカード",items:supportItems(),
+      filters:SUPPORT_FILTERS,
+      render:it=>`<span class="type" style="background:${typeColor(it.s.type)}">${esc(it.s.rarity)}</span><span><span class="t">${esc(it.s.title)}</span><span class="n">${esc(it.s.name)}</span></span>`,
       onPick:it=>{v.cand=it.s.id;persist();renderVerify()}});
   });
 }
 // 編成を差し替えて、入手経路の判定〜おすすめ構成までをやり直す（重い計算の結果はプランのものを使い回す。行は複製して、プランの表示に影響させない）
 function evalDeck(p,cards){
   const q=Object.assign({},p,{deckCards:cards,rows:p.rows.map(x=>({...x})),inhAll:p.inhAll.map(u=>({...u}))});
-  const d=derive(q);let m=summarize(q,d);let L=buildLoadout(q,d,m);
-  if(staRecheck(q,d,m,L)){m=summarize(q,d);L=buildLoadout(q,d,m);staRecheck(q,d,m,L,true)}
+  const d=derive(q);const {m,L}=loadoutWithStamina(q,d,summarize(q,d));
   const Lo=buildLoadout(q,d,m,true);
   tierByLoadout(d,L);
   return{d,m,L,Lo,th:{...TH}};
@@ -1512,9 +1537,9 @@ async function runVerify(){
   if(st.deck.includes(v.cand)){toast("そのカードはすでに編成に入っています");return}
   if(computing)return;
   computing=true;
-  out.innerHTML=`<div class="progress"><span>計算中…</span><div class="bar"><i id="vbar"></i></div></div>`;
+  out.innerHTML=progressHtml("計算中…","vbar");
   try{
-    if(planDirty||!lastPlan){lastPlan=await computePlan(f=>{const b=$("#vbar");if(b)b.style.width=Math.round(f*90)+"%"});planDirty=false}
+    if(planDirty||!lastPlan){lastPlan=await computePlan(f=>barTo("vbar",f*.9));planDirty=false}
     await new Promise(r=>setTimeout(r));
     const p=lastPlan;
     const cardsA=st.deck.map(id=>SP[id]).filter(Boolean);
@@ -1522,11 +1547,11 @@ async function runVerify(){
     const cardsB=deckB.map(id=>SP[id]).filter(Boolean);
     const A=evalDeck(p,cardsA),B=evalDeck(p,cardsB);
     out.innerHTML=`<div class="vres">${verifyHtml(A,B,cur,cand,v.slot)}</div>`;
-  }catch(e){console.error(e);out.innerHTML=`<div class="progress" style="color:var(--must)">計算中にエラーが起きました。</div>`}
+  }catch(e){console.error(e);out.innerHTML=errorHtml()}
   finally{computing=false}
 }
 function verifyHtml(A,B,cur,cand,slot){
-  const gk=x=>x.s.owner?x.s.id:(x.s.groupId||x.s.id);
+  const gk=x=>x.s.owner?x.s.id:gOf(x.s);
   const val=x=>x.tierV??x.expAdj??x.exp;
   const own=E=>new Map(E.d.reps.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok).map(x=>[gk(x),x]));
   const all=E=>new Map(E.d.reps.map(x=>[gk(x),x]));
@@ -1613,15 +1638,18 @@ function showSkillPop(sid){
 window.__verify={evalDeck,last:()=>lastExport,plan:()=>lastPlan,deck:()=>st.deck.map(id=>SP[id]).filter(Boolean)};
 
 let computing=false;
+const progressHtml=(label,barId)=>`<div class="progress"><span${barId==="tbar"?' id="tlab"':""}>${label}</span><div class="bar"><i id="${barId}"></i></div></div>`;
+const errorHtml=(msg="計算中にエラーが起きました。")=>`<div class="progress" style="color:var(--must)">${msg}</div>`;
+const barTo=(id,f)=>{const b=$("#"+id);if(b)b.style.width=Math.round(f*100)+"%"};
 async function computeAndRender(){
   if(computing)return;
   if(!planDirty&&lastPlan){renderSheet(lastPlan);return}
   computing=true;
-  $("#sheet").innerHTML=`<div class="progress"><span>獲得バ身を計算中…</span><div class="bar"><i id="pbar"></i></div></div>`;
+  $("#sheet").innerHTML=progressHtml("獲得バ身を計算中…","pbar");
   try{
-    const p=await computePlan(f=>{const b=$("#pbar");if(b)b.style.width=Math.round(f*100)+"%"});
+    const p=await computePlan(f=>barTo("pbar",f));
     lastPlan=p;planDirty=false;renderSheet(p);
-  }catch(e){console.error(e);$("#sheet").innerHTML=`<div class="progress" style="color:var(--must)">計算中にエラーが起きました。条件を変えてもう一度お試しください。</div>`}
+  }catch(e){console.error(e);$("#sheet").innerHTML=errorHtml("計算中にエラーが起きました。条件を変えてもう一度お試しください。")}
   finally{computing=false}
 }
 
@@ -1635,11 +1663,9 @@ function renderSheet(p){
   const connList=d.reps.filter(x=>x.conn&&x.route).sort((a,b)=>(b.conn.rate>=0.99)-(a.conn.rate>=0.99)||(a.route.kind==="own"?0:1)-(b.route.kind==="own"?0:1)||b.conn.rate-a.conn.rate||b.expAdj-a.expAdj);
   const connInh=m.cands.map(u=>({u,c:u.r.ok?connectInfo(p.ctx,u.s):null})).filter(o=>o.c);
   const connHtml=`<p class="hint">中盤に発動した速度スキルの効果が残ったまま、終盤（${Math.round(p.ctx.phaseIv[2][0])}m地点）に入れるスキルです。速度が上がった状態からラストスパートの加速が始まるため、最高速度に早く届きます（期待バ身にはこの効果も入っています）。ランダム位置のものは、発動位置しだいでつながる割合を出しています。</p>
-    ${connList.length?`<ul class="ulist clist">${connList.filter(x=>x.conn.rate>=0.99).concat(connList.filter(x=>x.conn.rate<0.99).slice(0,10)).map(x=>`<li><span><b>${esc(x.s.name)}</b><small style="display:block;color:var(--muted)">${esc(x.route.label)}</small></span><span>${x.conn.rate>=0.99?'<span class="cbadge sure">確定</span>':'<span class="cbadge maybe">約'+Math.round(x.conn.rate*100)+'%</span>'}残り${x.conn.rem.toFixed(1)}秒・${(x.expAdj??x.exp).toFixed(2)}バ身</span></li>`).join("")}</ul>`:'<p class="hint">該当するスキルはありません。</p>'}
-    ${connInh.length?`<p class="lbl" style="margin-top:8px">継承固有の候補</p><ul class="ulist">${connInh.map(o=>`<li><span><b>${esc(o.u.s.name)}</b><small style="display:block;color:var(--muted)">${esc(o.u.x.name)}</small></span><span>${o.c.rate>=0.99?'<span class="cbadge sure">確定</span>':'<span class="cbadge maybe">約'+Math.round(o.c.rate*100)+'%</span>'}残り${o.c.rem.toFixed(1)}秒・${o.u.exp.toFixed(2)}バ身</span></li>`).join("")}</ul>`:""}`;
-  let L=buildLoadout(p,d,m);
-  // 構成に入った「体力を使うスキル」の消費を足してスタミナを判定し直す。回復が足りなくなったら回復を足して、構成を組み直す
-  if(staRecheck(p,d,m,L)){m=summarize(p,d);L=buildLoadout(p,d,m);staRecheck(p,d,m,L,true)}
+    ${connList.length?`<ul class="ulist clist">${connList.filter(x=>x.conn.rate>=0.99).concat(connList.filter(x=>x.conn.rate<0.99).slice(0,10)).map(x=>`<li><span><b>${esc(x.s.name)}</b><small style="display:block;color:var(--muted)">${esc(x.route.label)}</small></span><span>${connBadge(x.conn)}残り${x.conn.rem.toFixed(1)}秒・${(x.expAdj??x.exp).toFixed(2)}バ身</span></li>`).join("")}</ul>`:'<p class="hint">該当するスキルはありません。</p>'}
+    ${connInh.length?`<p class="lbl" style="margin-top:8px">継承固有の候補</p><ul class="ulist">${connInh.map(o=>`<li><span><b>${esc(o.u.s.name)}</b><small style="display:block;color:var(--muted)">${esc(o.u.x.name)}</small></span><span>${connBadge(o.c)}残り${o.c.rem.toFixed(1)}秒・${o.u.exp.toFixed(2)}バ身</span></li>`).join("")}</ul>`:""}`;
+  const lw=loadoutWithStamina(p,d,m);m=lw.m;const L=lw.L;
   for(const x of d.reps)x.inLoadout=false;
   L.picked.forEach(k=>k.x.inLoadout=true);
   const tl=tierByLoadout(d,L);
@@ -1662,13 +1688,13 @@ function renderSheet(p){
   const facRow=(label,cls,list,cap)=>facRowHtml(label,cls,list,cap,fcov);
   const farm=m.farm;
   const farmHtml=farm&&farm.picked.length?`<p class="hint">因子周回のデッキ案です。因子化したいスキルのヒントを持つサポカを、超優先＝3点・優先＝2点・通常＝1点の重みで、カバーが広くなるように6枚選んでいます（○と◎は同じ系統として扱います）。カードの育成性能は考慮していないので、編成の土台として使ってください。</p>
-    <div class="deck farm">${farm.picked.map((c,i)=>`<div class="slot"><div class="top"><span class="no">${i+1}</span><span class="type" style="background:${TYPE_COLOR[c.sp.type]||"#999"}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${c.newG.map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
+    <div class="deck farm">${farm.picked.map((c,i)=>`<div class="slot"><div class="top"><span class="no">${i+1}</span><span class="type" style="background:${typeColor(c.sp.type)}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${c.newG.map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
     <p class="hint">カバー率：超優先 ${farm.tc.top.hit}/${farm.tc.top.all}・優先 ${farm.tc.high.hit}/${farm.tc.high.all}・通常 ${farm.tc.norm.hit}/${farm.tc.norm.all}</p>
     ${farm.others.length?`<details class="tier sub" data-sec="farm-more"${(SEC_OPEN["farm-more"]??false)?" open":""}><summary class="tier-h"><span class="tg" style="background:var(--opt)">その他の候補</span><span class="n">${farm.others.length}枚</span><span class="chev" aria-hidden="true"></span></summary>
       <p class="hint">デッキ案に入らなかったカードのうち、因子化したいスキルのヒントを2種類以上持つものです（入れ替え候補）。</p>
-      <div class="deck farm">${farm.others.map(c=>`<div class="slot"><div class="top"><span class="type" style="background:${TYPE_COLOR[c.sp.type]||"#999"}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span><span class="hint" style="margin-left:auto">${c.g.size}種類</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${[...c.g].sort((a,b)=>farm.w(b)-farm.w(a)).map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
+      <div class="deck farm">${farm.others.map(c=>`<div class="slot"><div class="top"><span class="type" style="background:${typeColor(c.sp.type)}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span><span class="hint" style="margin-left:auto">${c.g.size}種類</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${[...c.g].sort((a,b)=>farm.w(b)-farm.w(a)).map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
     </details>`:""}`:'<p class="hint">因子化したいスキルがないため、デッキ案はありません。</p>';
-  const facHtml=`<p class="hint">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントでは取れず、白因子で継承したい白スキルです（数字は期待バ身。手持ちのスキルと合わせて走らせたときに増える分）。${S.passSpdOnly?"スピード以外のステータスを上げるパッシブは除いています。":""}段階は、このプランでいちばん伸びるスキル（${m.fac.best.toFixed(2)}バ身）を基準に、70%以上（${(m.fac.best*0.7).toFixed(2)}バ身以上）＝超優先（最大15件）、40%以上（${(m.fac.best*0.4).toFixed(2)}バ身以上）＝優先（最大20件）、それ未満で0.1バ身以上＝通常（最大${Math.max(25,Math.min(40,Math.round(S.facNorm||35)))}件、設定で変更可）。持久力温存の回避に必要な回復は超優先です。「イベ」の印は、育成ウマ娘の育成イベントでもヒントが出る可能性があるスキルです（イベントが必ず起きるとは限らないため、候補には残しています。印に触れると、イベント名と選択肢が出ます）。</p>${pinBar(L)}${covLine(fcov)}${facRow("超優先","ft-top",m.fac.top,15)}${facRow("優先","ft-high",m.fac.high,20)}${facRow("通常","ft-norm",m.fac.norm,Math.max(25,Math.min(40,Math.round(S.facNorm||35))))}${pureDbBox(m.fac)}`;
+  const facHtml=`<p class="hint">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントでは取れず、白因子で継承したい白スキルです（数字は期待バ身。手持ちのスキルと合わせて走らせたときに増える分）。${S.passSpdOnly?"スピード以外のステータスを上げるパッシブは除いています。":""}段階は、このプランでいちばん伸びるスキル（${m.fac.best.toFixed(2)}バ身）を基準に、70%以上（${(m.fac.best*0.7).toFixed(2)}バ身以上）＝超優先（最大15件）、40%以上（${(m.fac.best*0.4).toFixed(2)}バ身以上）＝優先（最大20件）、それ未満で0.1バ身以上＝通常（最大${facNormCap()}件、設定で変更可）。持久力温存の回避に必要な回復は超優先です。「イベ」の印は、育成ウマ娘の育成イベントでもヒントが出る可能性があるスキルです（イベントが必ず起きるとは限らないため、候補には残しています。印に触れると、イベント名と選択肢が出ます）。</p>${pinBar(L)}${covLine(fcov)}${facRow("超優先","ft-top",m.fac.top,15)}${facRow("優先","ft-high",m.fac.high,20)}${facRow("通常","ft-norm",m.fac.norm,facNormCap())}${pureDbBox(m.fac)}`;
   const dd=new Date(),ds=`${dd.getFullYear()}/${dd.getMonth()+1}/${dd.getDate()}`;
   const stat=[["spd","スピード"],["sta","スタミナ"],["pow","パワー"],["gut","根性"],["wit","賢さ"]];
   const full=st.inherit.length>=6;
@@ -1679,7 +1705,7 @@ function renderSheet(p){
   const spdNote=p.ctx.ft.on
     ?`<p class="hint" style="color:var(--opt)">全開スパートを仮モデルで計算しています（上昇量の上限${S.ftGain}m/s・伸びの係数${S.ftCoef}）。${ftb&&ftb.ftStart!=null?`残り約${Math.round(p.c.dist-ftb.ftStart)}mで発動し、ゴールまでに最高速度が約${ftb.ftGain.toFixed(2)}m/s上がる想定です。`:"この条件では全力スパートの最高速度に届かないか、スピードが2000以下のため発動しない想定です。"}</p>`
     :(st.stats.spd>2000?`<p class="hint" style="color:var(--opt)">スピード2001以上で起きる「全開スパート」は計算に含めていません。設定タブで仮モデルをオンにすると計算に入れられます。</p>`:"");
-  const guideHtml=d.guide.map(g=>`<div class="gcard"><div class="gh"><span class="type" style="background:${TYPE_COLOR[g.card.type]||"#999"}">${esc(g.card.type)}</span><b>${esc(g.card.name)}</b><span class="hint">「${esc(g.ev.title)}」${esc(g.ev.kind)}</span></div>${g.opts.map(o=>{const isSel=o===g.sel,isRec=o===g.rec&&g.opts.length>1&&o.best>0;
+  const guideHtml=d.guide.map(g=>`<div class="gcard"><div class="gh"><span class="type" style="background:${typeColor(g.card.type)}">${esc(g.card.type)}</span><b>${esc(g.card.name)}</b><span class="hint">「${esc(g.ev.title)}」${esc(g.ev.kind)}</span></div>${g.opts.map(o=>{const isSel=o===g.sel,isRec=o===g.rec&&g.opts.length>1&&o.best>0;
     const body=`<span class="gt">${o.text?esc(o.text):"（選択肢なし）"}${isRec?'<span class="rec">おすすめ</span>':""}${isSel&&g.opts.length>1?'<span class="selp">取得予定</span>':""}</span><span class="gs">${o.res.map(r=>r.skills.length?r.skills.map(k=>`${o.multi?(r.pattern===1?"成功：":"失敗："):""}${esc(k.s.name)}${k.link?"（シナリオリンク）":` Lv${k.lv}`}${k.exp>0?`（${k.exp.toFixed(2)}バ身${hasHeal(k.s)?"・回復は別":""}）`:hasHeal(k.s)?"（回復：スタミナの判定で評価）":"（このレースでは効果なし）"}`).join("、"):(o.multi?(r.pattern===1?"成功：":"失敗："):"")+"スキルなし").join("<br>")}</span>`;
     return g.opts.length>1?`<button type="button" class="gopt pick-opt${isSel?" best":""}" data-evk="${esc(g.key)}" data-evi="${o.i}" aria-pressed="${isSel}">${body}</button>`:`<div class="gopt best">${body}</div>`}).join("")}</div>`).join("");
   $("#sheet").innerHTML=`
@@ -1692,7 +1718,7 @@ function renderSheet(p){
     <div style="display:grid;gap:8px">
       <div class="aptrow"><span class="k">適性</span><span class="apt">${rk(p.a.surf)}${esc(p.c.surface)}</span><span class="apt">${rk(p.a.dist)}${p.cat}</span><span class="apt">${rk(p.a.style)}${esc(st.style)}</span></div>
       <div class="stats">${stat.map(([k,l])=>`<div class="stat"><span class="nm" style="background:var(--c-${k})">${l}</span><span class="val">${st.stats[k]}</span></div>`).join("")}</div>
-      <div class="chips">${p.deckCards.map(cd=>`<span class="chip" style="background:${TYPE_COLOR[cd.type]||"#999"};color:#fff">${esc(cd.name)}</span>`).join("")||'<span class="chip">デッキ未設定</span>'}</div>
+      <div class="chips">${p.deckCards.map(cd=>`<span class="chip" style="background:${typeColor(cd.type)};color:#fff">${esc(cd.name)}</span>`).join("")||'<span class="chip">デッキ未設定</span>'}</div>
       ${spdNote}
     </div>
     ${sec("summary","判定サマリー",`<div class="kpis">
@@ -1749,7 +1775,7 @@ function buildExportHtml(){
   const acc=`${A.ok?"足りる":"足りない"}・終盤に入ってから約${A.reach1.reachPos!=null?Math.round(A.reach1.reachPos-A.reach1.lateStart):"—"}mで最高速度`;
   const inh=(m.sel.length?m.sel:[]).map(u=>chip(u.s.name+"（"+u.x.name+"）"+(u.evo?"・継承進化":""))).join("")||"未選択";
   const lo=L.picked.map(k=>chip(k.x.s.name,rk(k.x.s))).join("");
-  const fac=(list)=>list.length?list.map(x=>chip(x.route&&x.route.viaLow?x.route.viaLow+"（◎まで）":x.s.name)).join(""):"—";
+  const fac=(list)=>list.length?list.map(x=>chip(facName(x))).join(""):"—";
   const evs=d.guide.filter(g=>g.sel&&g.sel.res.some(r=>r.skills.some(k=>k.s.rarity==="gold"))).map(g=>`<div class="xe"><b>${esc(g.card.name)}</b>「${esc(g.ev.title)}」${g.sel.text?"→ "+esc(g.sel.text.replace(/（リンク対象[^）]*）/,"")):""}：${[...new Set(g.sel.res.flatMap(r=>r.skills.filter(k=>k.s.rarity==="gold").map(k=>k.s.name)))].map(esc).join("・")}</div>`).join("")||"—";
   const conn=connList.filter(x=>x.conn.rate>=0.99).map(x=>chip(x.s.name)).join("")||"—";
   const deck=p.deckCards.map(cd=>esc(cd.name)).join("・")||"—";
@@ -1836,7 +1862,7 @@ $("#btnShareOpen").addEventListener("click",async()=>{
   try{const s2=await unpackPlan($("#shareIn").value);
     st=Object.assign(structuredClone(DEFAULT_STATE),s2);
     if(!CO[st.courseId])st.courseId=DEFAULT_STATE.courseId;if(!CH[st.charaId])st.charaId=D.charas[0].id;
-    st.deck=(st.deck||[]).map(id=>SP[id]?id:null).concat([null,null,null,null,null,null]).slice(0,6);
+    st.deck=pad6((st.deck||[]).map(id=>SP[id]?id:null));
     planDirty=true;persist();renderAll();computeAndRender();$("#shareIn").value="";toast("共有されたプランを開きました")}
   catch(e){toast("共有コードを読めませんでした（"+e.message+"）")}
 });
@@ -1847,32 +1873,32 @@ $("#btnSavePlan").addEventListener("click",()=>{const c=course();const n=$("#pla
 function renderSettings(){
   const items=[["持久力温存の判定に足す予備（最大体力の%）","conserveMargin"],["必須：いちばん伸びるスキルの何%以上か","mustPct"],["推奨：いちばん伸びるスキルの何%以上か","recPct"],["余裕あり・評価の下限（バ身）","floor"],["ランダム位置の試行回数","samples"],["因子化：「通常」の候補の上限（25〜40）","facNorm"]];
   $("#coefInputs").innerHTML=items.map(([l,k])=>`<label class="f">${l}<input type="number" step="any" id="cf-${k}" value="${S[k]}"></label>`).join("");
-  $("#coefInputs").querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{const k=inp.id.slice(3),v=parseFloat(inp.value);if(isNaN(v))return;S[k]=k==="samples"?Math.max(1,Math.min(32,Math.round(v))):v;LS.set("umaplan2.settings",S);planDirty=true}));
+  $("#coefInputs").querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{const k=inp.id.slice(3),v=parseFloat(inp.value);if(isNaN(v))return;S[k]=k==="samples"?Math.max(1,Math.min(32,Math.round(v))):v;saveS()}));
   renderFt();
   $("#slBase").value=S.slBase;
   $("#posExtraInputs").innerHTML=STYLES.map(k=>`<label class="f">${k}の追加消費（%）<input type="number" step="1" min="0" data-px="${k}" value="${(S.posExtra||{})[k]||0}"></label>`).join("");
-  $("#posExtraInputs").querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{const v=parseFloat(inp.value);if(isNaN(v)||v<0)return;S.posExtra=Object.assign({},S.posExtra,{[inp.dataset.px]:v});LS.set("umaplan2.settings",S);planDirty=true}));
-  seg($("#evoSeg"),["使う（所持・直親）","使わない"],S.inhEvo!==false?"使う（所持・直親）":"使わない",v=>{S.inhEvo=v!=="使わない";LS.set("umaplan2.settings",S);planDirty=true});
-  seg($("#witSeg"),["反映する","反映しない"],S.witBoost!==false?"反映する":"反映しない",v=>{S.witBoost=v==="反映する";LS.set("umaplan2.settings",S);planDirty=true});
-  seg($("#frontSeg"),["前方脚質は前目で判定","範囲全体で判定"],S.frontStrict!==false?"前方脚質は前目で判定":"範囲全体で判定",v=>{S.frontStrict=v==="前方脚質は前目で判定";LS.set("umaplan2.settings",S);planDirty=true});
-  seg($("#posSeg"),["脚質どおりなら満たす","成立率で割り引く"],S.posStyle?"脚質どおりなら満たす":"成立率で割り引く",v=>{S.posStyle=v==="脚質どおりなら満たす";LS.set("umaplan2.settings",S);planDirty=true});
-  seg($("#lotSeg"),["期待値で評価","外す"],S.lotteryOut?"外す":"期待値で評価",v=>{S.lotteryOut=v==="外す";LS.set("umaplan2.settings",S);planDirty=true});
-  seg($("#randSeg"),["平均で評価","控えめに評価"],S.randAccelSafe?"控えめに評価":"平均で評価",v=>{S.randAccelSafe=v==="控えめに評価";LS.set("umaplan2.settings",S);planDirty=true});
-  seg($("#safeSeg"),["オフ","オン"],S.safe105?"オン":"オフ",v=>{S.safe105=v==="オン";LS.set("umaplan2.settings",S);planDirty=true});
+  $("#posExtraInputs").querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{const v=parseFloat(inp.value);if(isNaN(v)||v<0)return;S.posExtra=Object.assign({},S.posExtra,{[inp.dataset.px]:v});saveS()}));
+  seg($("#evoSeg"),["使う（所持・直親）","使わない"],S.inhEvo!==false?"使う（所持・直親）":"使わない",v=>{S.inhEvo=v!=="使わない";saveS()});
+  seg($("#witSeg"),["反映する","反映しない"],S.witBoost!==false?"反映する":"反映しない",v=>{S.witBoost=v==="反映する";saveS()});
+  seg($("#frontSeg"),["前方脚質は前目で判定","範囲全体で判定"],S.frontStrict!==false?"前方脚質は前目で判定":"範囲全体で判定",v=>{S.frontStrict=v==="前方脚質は前目で判定";saveS()});
+  seg($("#posSeg"),["脚質どおりなら満たす","成立率で割り引く"],S.posStyle?"脚質どおりなら満たす":"成立率で割り引く",v=>{S.posStyle=v==="脚質どおりなら満たす";saveS()});
+  seg($("#lotSeg"),["期待値で評価","外す"],S.lotteryOut?"外す":"期待値で評価",v=>{S.lotteryOut=v==="外す";saveS()});
+  seg($("#randSeg"),["平均で評価","控えめに評価"],S.randAccelSafe?"控えめに評価":"平均で評価",v=>{S.randAccelSafe=v==="控えめに評価";saveS()});
+  seg($("#safeSeg"),["オフ","オン"],S.safe105?"オン":"オフ",v=>{S.safe105=v==="オン";saveS()});
   seg($("#kireSeg"),["通常","勉強家","切れ者"],S.spCond||"通常",v=>{S.spCond=v;LS.set("umaplan2.settings",S)});
   $("#hintOwn").value=S.hintOwn;$("#hintInh").value=S.hintInh;$("#hintGold").value=S.hintGold??1;
-  seg($("#passSeg"),["外さない","外す"],S.passSpdOnly?"外す":"外さない",v=>{S.passSpdOnly=v==="外す";LS.set("umaplan2.settings",S);planDirty=true});
+  seg($("#passSeg"),["外さない","外す"],S.passSpdOnly?"外す":"外さない",v=>{S.passSpdOnly=v==="外す";saveS()});
   if(D)$("#dataInfo").textContent=`読み込み中のデータ：${D.meta.source}（${(D.meta.fetchedAt||"").slice(0,10)}取得）。スキル${D.skills.length}件・育成ウマ娘${D.charas.length}件・サポートカード${D.supports.length}件・コース${D.courses.length}件。`;
 }
 function renderFt(){
-  seg($("#ftSeg"),["オフ","オン"],S.ftOn?"オン":"オフ",v=>{S.ftOn=v==="オン";LS.set("umaplan2.settings",S);planDirty=true});
+  seg($("#ftSeg"),["オフ","オン"],S.ftOn?"オン":"オフ",v=>{S.ftOn=v==="オン";saveS()});
   $("#ftGain").value=S.ftGain;$("#ftCoef").value=S.ftCoef;
 }
-$("#ftGain").addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=0){S.ftGain=v;LS.set("umaplan2.settings",S);planDirty=true}});
+$("#ftGain").addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=0){S.ftGain=v;saveS()}});
 ["hintOwn","hintInh","hintGold"].forEach(k=>$("#"+k).addEventListener("input",e=>{const v=parseInt(e.target.value,10);if(v>=0&&v<=5){S[k]=v;LS.set("umaplan2.settings",S)}}));
-$("#slBase").addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=0){S.slBase=v;LS.set("umaplan2.settings",S);planDirty=true}});
-$("#ftCoef").addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=0){S.ftCoef=v;LS.set("umaplan2.settings",S);planDirty=true}});
-$("#btnResetS").addEventListener("click",()=>{S=Object.assign({},DEFAULT_S,{posExtra:Object.assign({},DEFAULT_S.posExtra)});LS.set("umaplan2.settings",S);planDirty=true;renderSettings();toast("初期値に戻しました")});
+$("#slBase").addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=0){S.slBase=v;saveS()}});
+$("#ftCoef").addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=0){S.ftCoef=v;saveS()}});
+$("#btnResetS").addEventListener("click",()=>{S=Object.assign({},DEFAULT_S,{posExtra:Object.assign({},DEFAULT_S.posExtra)});saveS();renderSettings();toast("初期値に戻しました")});
 
 function renderAll(){renderRace();renderUma();renderDeck();renderSaved()}
 
@@ -1895,11 +1921,11 @@ function renderAll(){renderRace();renderUma();renderDeck();renderSaved()}
     D.charas.sort((a,b)=>String(b.publishedAt||"").localeCompare(String(a.publishedAt||"")));
     D.supports.sort((a,b)=>String(b.publishedAt||"").localeCompare(String(a.publishedAt||"")));
     if(!CO[st.courseId])st.courseId=(D.courses.find(c=>c.id==="10606")||D.courses[0]).id;
-    if(!CH[st.charaId]){const c=D.charas[0];st.charaId=c.id;st.style=STYLES.slice().sort((x,y)=>RANKS.indexOf(c.apt[x])-RANKS.indexOf(c.apt[y]))[0]}
+    if(!CH[st.charaId]){const c=D.charas[0];st.charaId=c.id;st.style=bestStyle(c)}
     if(!st.deck.some(id=>SP[id])){
       // 初期デッキ：新しい順に、スピード2・スタミナ・パワー・賢さ・友人のSSRを入れておく
       const pick=(t,n)=>D.supports.filter(s=>s.type===t&&s.rarity==="SSR").slice(0,n).map(s=>s.id);
-      st.deck=[...pick("スピード",2),...pick("スタミナ",1),...pick("パワー",1),...pick("賢さ",1),...pick("友人",1)].concat([null,null,null,null,null,null]).slice(0,6);
+      st.deck=pad6([...pick("スピード",2),...pick("スタミナ",1),...pick("パワー",1),...pick("賢さ",1),...pick("友人",1)]);
     }
     st.deck=st.deck.map(id=>SP[id]?id:null);
     persist();
