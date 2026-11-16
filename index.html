@@ -485,6 +485,10 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
       <p class="hint">逃げ・先行は、<b>前目につけたとき</b>（脚質どおりの順位の範囲の先頭）に満たせる条件だけを成立扱いにします（初期値）。前目では満たせない「中団・後方にいるとき」系のスキルを、推奨・構成・因子化の候補に入れないためです。</p>
       <div class="seg" id="frontSeg"></div>
     </div></div>
+    <div class="card"><div class="card-h"><span class="mk"></span><h2>賢さによるスキル強化</h2></div><div class="card-b">
+      <p class="hint">賢さが1200を超えると、固有・金・進化スキルの「速度を上げる」「前に出る」効果が賢さに応じて大きくなります（白スキル、加速・回復は対象外）。正確な計算式は公開されていないため、有志の解析の平均値をもとにした推定値で計算します（賢さ1400で約1.04倍、1600で約1.17倍、1600を超えると伸びは緩やか）。</p>
+      <div class="seg" id="witSeg"></div>
+    </div></div>
     <div class="card"><div class="card-h"><span class="mk"></span><h2>抽選で発動するスキル</h2></div><div class="card-b">
       <p class="hint">「ごくまれに」発動するスキル（やまっけ・ラッキーセブンなど、抽選の確率が50%未満のもの）は、期待値では少し得でも、多くのレースで何も起きません。外す設定では、おすすめのスキル構成と因子化の候補に入れません（スキル判定の一覧には期待値のまま表示します）。</p>
       <div class="seg" id="lotSeg"></div>
@@ -544,7 +548,7 @@ const ICONS={
   forward:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h10"/><path d="M10 6l6 6-6 6"/><path d="M19 5v14"/></svg>',
   other:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>'
 };
-const DEFAULT_S={must:1.0,rec:0.5,opt:0.2,samples:8,ftOn:true,ftGain:1.0,ftCoef:0.1,conserveMargin:0,slBase:35,posExtra:{逃げ:17,先行:17,差し:17,追込:17},mustPct:70,recPct:40,floor:.1,passSpdOnly:true,safe105:false,randAccelSafe:true,lotteryOut:true,posStyle:true,frontStrict:true,facNorm:35,inhEvo:true,hintOwn:5,hintInh:5,hintGold:1,spCond:"通常",ver:6};
+const DEFAULT_S={must:1.0,rec:0.5,opt:0.2,samples:8,ftOn:true,ftGain:1.0,ftCoef:0.1,conserveMargin:0,slBase:35,posExtra:{逃げ:17,先行:17,差し:17,追込:17},mustPct:70,recPct:40,floor:.1,passSpdOnly:true,safe105:false,randAccelSafe:true,lotteryOut:true,posStyle:true,frontStrict:true,witBoost:true,facNorm:35,inhEvo:true,hintOwn:5,hintInh:5,hintGold:1,spCond:"通常",ver:6};
 const DEFAULT_STATE={field:{popularity:null,post:null,counts:null},ev:"チャンミ",courseId:"10606",scenario:null,ground:"良",weather:"晴",season:"春",charaId:null,style:"差し",apt:null,
   stats:{spd:1800,sta:1200,pow:1400,gut:1000,wit:1300},mood:"絶好調",spBudget:3000,deck:[null,null,null,null,null,null],inherit:[]};
 
@@ -557,6 +561,7 @@ if(S.randAccelSafe==null){S.randAccelSafe=true}
 if(S.lotteryOut==null){S.lotteryOut=true}
 if(S.posStyle==null){S.posStyle=true}
 if(S.frontStrict==null){S.frontStrict=true}
+if(S.witBoost==null){S.witBoost=true}
 if(S.facNorm==null){S.facNorm=35}
 if(S.inhEvo==null){S.inhEvo=true}
 if(S.mustPct==null){S.mustPct=70;S.recPct=40;S.floor=.1;LS.set("umaplan2.settings",S)}
@@ -790,7 +795,7 @@ async function computePlan(onProgress){
   const ch=chara(),c=course(),a=apts();
   const field=st.field||{};
   const ftOpt={enabled:S.ftOn,maxGain:S.ftGain,coef:S.ftCoef};
-  const comp={posMode:S.posStyle?"style":"prob",frontStrict:S.frontStrict!==false,secureLeadBase:S.slBase||0,posExtra:S.posExtra||{},conserveTarget:S.safe105?1.04*1.05:undefined};
+  const comp={posMode:S.posStyle?"style":"prob",frontStrict:S.frontStrict!==false,witBoost:S.witBoost!==false,secureLeadBase:S.slBase||0,posExtra:S.posExtra||{},conserveTarget:S.safe105?1.04*1.05:undefined};
   const input={course:c,cond:{ground:st.ground,weather:st.weather,season:st.season},uma:{style:st.style,stats:st.stats,apt:a,mood:st.mood},field:{popularity:field.popularity,post:field.post,counts:field.counts,defaultCounts:st.ev==="LoH"?{逃げ:2,先行:4,差し:4,追込:1}:null},options:Object.assign({fullThrottle:ftOpt},comp)};
   const ctx=UmaSim.buildContext(input);
   const ctxRush=UmaSim.buildContext(Object.assign({},input,{options:Object.assign({rushed:"always",fullThrottle:ftOpt,conserveMargin:(S.conserveMargin||0)/100},comp)}));
@@ -1848,6 +1853,7 @@ function renderSettings(){
   $("#posExtraInputs").innerHTML=STYLES.map(k=>`<label class="f">${k}の追加消費（%）<input type="number" step="1" min="0" data-px="${k}" value="${(S.posExtra||{})[k]||0}"></label>`).join("");
   $("#posExtraInputs").querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{const v=parseFloat(inp.value);if(isNaN(v)||v<0)return;S.posExtra=Object.assign({},S.posExtra,{[inp.dataset.px]:v});LS.set("umaplan2.settings",S);planDirty=true}));
   seg($("#evoSeg"),["使う（所持・直親）","使わない"],S.inhEvo!==false?"使う（所持・直親）":"使わない",v=>{S.inhEvo=v!=="使わない";LS.set("umaplan2.settings",S);planDirty=true});
+  seg($("#witSeg"),["反映する","反映しない"],S.witBoost!==false?"反映する":"反映しない",v=>{S.witBoost=v==="反映する";LS.set("umaplan2.settings",S);planDirty=true});
   seg($("#frontSeg"),["前方脚質は前目で判定","範囲全体で判定"],S.frontStrict!==false?"前方脚質は前目で判定":"範囲全体で判定",v=>{S.frontStrict=v==="前方脚質は前目で判定";LS.set("umaplan2.settings",S);planDirty=true});
   seg($("#posSeg"),["脚質どおりなら満たす","成立率で割り引く"],S.posStyle?"脚質どおりなら満たす":"成立率で割り引く",v=>{S.posStyle=v==="脚質どおりなら満たす";LS.set("umaplan2.settings",S);planDirty=true});
   seg($("#lotSeg"),["期待値で評価","外す"],S.lotteryOut?"外す":"期待値で評価",v=>{S.lotteryOut=v==="外す";LS.set("umaplan2.settings",S);planDirty=true});

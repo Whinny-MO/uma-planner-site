@@ -111,6 +111,16 @@
     if (pp == null || ctx.opts.posMode !== "style" || !STYLE_KEYS.test(key)) return pp;
     return pp > 0 ? 1 : 0;
   }
+  // 賢さ1200超えのスキル強化（5周年）：固有・金・進化の「速度を上げる」「前に出る」効果が賢さに応じて上がる。
+  // 正確な式は非公開のため、有志の平均値（1400で+4.2%前後、1600で+16.8%前後、1600より上は伸びが緩やか）を折れ線で近似した推定値。
+  // 賢さは表示値（1200超えの半減前）を使う。
+  const witSkillBoost = (wit) => {
+    if (!(wit > 1200)) return 0;
+    if (wit <= 1400) return (wit - 1200) * 0.00021;
+    if (wit <= 1600) return 0.042 + (wit - 1400) * 0.00063;
+    return 0.168 + (wit - 1600) * 0.0001;
+  };
+  const WIT_BOOST_RARITY = new Set(["unique", "gold", "special"]);
   const rushedChance = (wit) => Math.min(1, Math.pow(6.5 / Math.log10(0.1 * wit + 1), 2) / 100);
   const RUSHED_EXPECTED_SEC = 3 * 0.55 + 6 * 0.45 * 0.55 + 9 * 0.45 * 0.45 * 0.55 + 12 * 0.45 * 0.45 * 0.45;
 
@@ -183,6 +193,7 @@
       field: input.field || null, mood: uma.mood || "絶好調",
       pos: positionModel(style, input.field),
       // 掛かり・下り坂加速は「期待値」で織り込む（options.rushed: "expected" | "none" | "always"）
+      witBoost: (input.options && input.options.witBoost === false) ? 0 : witSkillBoost(raw.wit),
       opts: Object.assign({ rushed: "expected", downhill: true, witNoise: true, conserveMargin: 0, secureLeadBase: 0, posExtra: null }, input.options || {}),
       // 位置取り争い（逃げのみ）：ほかに逃げがいれば起きる扱い。リード確保：後ろにいるべき脚質がいれば起きうる
       comp: (() => {
@@ -419,7 +430,7 @@
       if (r.dep) { const first = out.find((x) => !x.dep); if (!first) continue; if (first.pos > pos) pos = first.pos; }
       const dur = p.baseTime > 0 ? (p.baseTime / 10000) * (ctx.D / 1000) : 0;
       // 全開スパート中が条件のものは、全開スパート開始位置〜ゴールの中の割合で発動位置を決める（走行中に確定）
-      const plan = { pos: r.ft ? Infinity : pos, ftFrac: r.ft ? (r.random ? frac : 0) : null, dur, passive: p.baseTime < 0, effects: (p.effects || []).filter(selfEff), random: r.random, unknown: r.unknown, prob: r.prob, posKeys: r.posKeys, alts: [], dep: !!r.dep };
+      const plan = { pos: r.ft ? Infinity : pos, ftFrac: r.ft ? (r.random ? frac : 0) : null, dur, passive: p.baseTime < 0, effects: (p.effects || []).filter(selfEff), wb: WIT_BOOST_RARITY.has(skill.rarity), random: r.random, unknown: r.unknown, prob: r.prob, posKeys: r.posKeys, alts: [], dep: !!r.dep };
       // 続けて発動する効果（dep）は、同じ種類の効果でも分岐ではなく上乗せなので別に積む
       if (!r.dep && seen.has(sig)) { const main = out.find((x) => x.sig === sig && !x.dep); if (main) main.alts.push(plan); continue; }
       // 「〜だと効果が変わり」「または」と説明されるスキルは、効果の種類が違っても分岐（どれか1つだけ発動）
@@ -517,7 +528,8 @@
         if (s.fired || pos < s.pos) continue;
         s.fired = true;
         for (const e of s.effects) {
-          const val = e.value / 10000;
+          let val = e.value / 10000;
+          if (s.wb && ctx.witBoost && val > 0 && (e.target === 27 || e.target === 21 || e.target === 22)) val *= 1 + ctx.witBoost;
           if (e.target === 9) {
             // 「持久力をすごく使ってしまうことがある」型の大きな消費は、良い方の結果で評価する
             if (val > -0.5) { hp = Math.min(maxHP, hp + maxHP * val); if (phase >= 2) spurtV = decideSpurt(); }
