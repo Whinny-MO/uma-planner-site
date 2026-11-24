@@ -906,6 +906,24 @@ function derive(p){
   const ctx=p.ctx,ch=p.ch,uniq=p.uniq;
   const rowById=new Map(p.rows.map(x=>[x.s.id,x]));
   const val=id=>{const x=rowById.get(id);return x&&x.r.ok?x.exp:0};
+  // スタミナが足りないときは、イベントの選択肢で回復スキルを優先する（回復の効果は獲得バ身に入れていないため、別に評価する）
+  //  土台：イベント以外で必ず取れる回復（固有・サポカのトレーニング・覚醒・シナリオ）と、選んだ継承固有の回復、設定のデバフ
+  const ownIds0=new Set([...(uniq?[uniq.id]:[]),...p.deckCards.flatMap(cd=>cd.skillIds),...Object.keys(ch.skillRanks||{}),...(ch.awakeningSkillIds||[]),...p.scSet]);
+  const selHeal=plansOf(ctx,(st.inherit||[]).map(id=>p.inhAll.find(u=>u.s.id===id)).filter(u=>u&&u.s.effect==="heal").map(u=>u.s));
+  let healBase=selHeal.concat(dbOf(ctx),plansOf(ctx,p.rows.filter(x=>x.s.effect==="heal"&&x.r.ok&&ownIds0.has(x.s.id)&&pinOf(x.s.id)!=="never").map(x=>x.s)));
+  let short0=shortOf(UmaSim.run(p.ctxC,healBase));
+  const healGainCache=new Map();
+  // その回復を足すと、体力の不足がどれだけ減るか（足りている・回復でないなら0）
+  const healGain=id=>{
+    if(short0<=0)return 0;
+    if(healGainCache.has(id))return healGainCache.get(id);
+    const x=rowById.get(id);let g=0;
+    if(x&&x.r.ok&&x.s.effect==="heal"&&pinOf(id)!=="never")g=Math.max(0,short0-shortOf(UmaSim.run(p.ctxC,healBase.concat(UmaSim.planSkill(ctx,x.s,.5)))));
+    healGainCache.set(id,g);return g;
+  };
+  // 選択肢の優先度：不足を減らせる回復は、どの速度・加速スキルより先（減らせる量が大きい順）
+  const HEAL_FIRST=1000;
+  const score=k=>k.heal>1?HEAL_FIRST+k.heal:k.exp;
   // サポカのイベント：選択肢ごとの価値と、おすすめ・選択中を決める
   st.evChoice=st.evChoice||{};
   const guide=[];
@@ -931,15 +949,18 @@ function derive(p){
         // シナリオリンク：リンク先のシナリオで育成するときは、ヒントの白スキルの上位の金スキルも取れる（rules.json の scenarioLink）
         const link=((D.rules&&D.rules.scenarioLink)||[]).find(l=>l.supports.includes(cd.id)&&l.scenario===scenario().id);
         const withLink=hs=>link?hs.concat(hs.filter(h=>link.upgrade[h.skillId]).map(h=>({skillId:link.upgrade[h.skillId],lv:1,link:true}))):hs;
-        const res=ch.results.map(r=>({pattern:r.pattern,skills:withLink(r.hints).map(h=>({s:SK[h.skillId],lv:h.lv,link:h.link,exp:val(h.skillId)})).filter(k=>k.s)}));
-        const best=Math.max(0,...res.flatMap(r=>r.skills.map(k=>k.exp)));
-        const sum=(res[0]?res[0].skills:[]).reduce((t,k)=>t+k.exp,0);
+        const res=ch.results.map(r=>({pattern:r.pattern,skills:withLink(r.hints).map(h=>({s:SK[h.skillId],lv:h.lv,link:h.link,exp:val(h.skillId),heal:healGain(h.skillId)})).filter(k=>k.s)}));
+        const best=Math.max(0,...res.flatMap(r=>r.skills.map(score)));
+        const sum=(res[0]?res[0].skills:[]).reduce((t,k)=>t+score(k),0);
         return{i,text:ch.text,res,best,sum,multi:ch.results.length>1};
       });
       const rec=opts.reduce((a,b)=>(b.best>a.best+1e-9||(Math.abs(b.best-a.best)<1e-9&&b.sum>a.sum))?b:a,opts[0]);
       const key=evKey(cd,ev);
       const selIdx=opts.length>1?(st.evChoice[key]??rec.i):0;
       const sel=opts.find(o=>o.i===selIdx)||rec;
+      // 取得予定の選択肢で回復を取るなら土台に足して、残りのイベントは減った不足で比べる（回復を取りすぎない）
+      const selHeals=sel.res[0]?sel.res[0].skills.filter(k=>k.heal>1):[];
+      if(selHeals.length){healBase=healBase.concat(plansOf(ctx,selHeals.map(k=>k.s)));short0=shortOf(UmaSim.run(p.ctxC,healBase));healGainCache.clear()}
       // 選んだ選択肢（選択肢が1つのイベントはそれ）で取れるスキルを入手経路に入れる。成功・失敗がある場合はどちらも記録
       for(const r of sel.res)for(const k of r.skills)(fromEvent[k.s.id]=fromEvent[k.s.id]||[]).push({card:cd,ev,choice:sel.text,pattern:r.pattern,multi:sel.multi,lv:k.lv,link:k.link});
       const hasGold=opts.some(o=>o.res.some(r=>r.skills.some(k=>k.s.rarity==="gold")));
@@ -984,7 +1005,6 @@ function derive(p){
   const statPassive=s=>{const ep=s.ep||[];return ep.length>0&&ep.every(q=>q.baseTime<0&&(q.effects||[]).every(e=>e.target>=2&&e.target<=5))};
   for(const x of p.rows){x.route=routeOf(x.s);x.expAdj=x.exp;x.conserveNeed=false;x.statPassive=statPassive(x.s);x.marg=null}
   // 持久力温存の回避に必要な回復：入手できる回復を、デッキ等→白因子の順、発動が早い順に積み、温存が起きなくなるまで必須扱い
-  const selHeal=plansOf(ctx,(st.inherit||[]).map(id=>p.inhAll.find(u=>u.s.id===id)).filter(u=>u&&u.s.effect==="heal").map(u=>u.s));
   const healRows=p.rows.filter(x=>x.s.effect==="heal"&&x.route&&x.r.ok&&pinOf(x.s.id)!=="never");
   healRows.sort((a,b)=>(a.route.kind==="own"?0:1)-(b.route.kind==="own"?0:1)||firstPos(ctx,a.s)-firstPos(ctx,b.s)||(b.s.value||0)-(a.s.value||0));
   let consPlans=selHeal.concat(dbOf(ctx));
@@ -1706,7 +1726,7 @@ function renderSheet(p){
     ?`<p class="hint" style="color:var(--opt)">全開スパートを仮モデルで計算しています（上昇量の上限${S.ftGain}m/s・伸びの係数${S.ftCoef}）。${ftb&&ftb.ftStart!=null?`残り約${Math.round(p.c.dist-ftb.ftStart)}mで発動し、ゴールまでに最高速度が約${ftb.ftGain.toFixed(2)}m/s上がる想定です。`:"この条件では全力スパートの最高速度に届かないか、スピードが2000以下のため発動しない想定です。"}</p>`
     :(st.stats.spd>2000?`<p class="hint" style="color:var(--opt)">スピード2001以上で起きる「全開スパート」は計算に含めていません。設定タブで仮モデルをオンにすると計算に入れられます。</p>`:"");
   const guideHtml=d.guide.map(g=>`<div class="gcard"><div class="gh"><span class="type" style="background:${typeColor(g.card.type)}">${esc(g.card.type)}</span><b>${esc(g.card.name)}</b><span class="hint">「${esc(g.ev.title)}」${esc(g.ev.kind)}</span></div>${g.opts.map(o=>{const isSel=o===g.sel,isRec=o===g.rec&&g.opts.length>1&&o.best>0;
-    const body=`<span class="gt">${o.text?esc(o.text):"（選択肢なし）"}${isRec?'<span class="rec">おすすめ</span>':""}${isSel&&g.opts.length>1?'<span class="selp">取得予定</span>':""}</span><span class="gs">${o.res.map(r=>r.skills.length?r.skills.map(k=>`${o.multi?(r.pattern===1?"成功：":"失敗："):""}${esc(k.s.name)}${k.link?"（シナリオリンク）":` Lv${k.lv}`}${k.exp>0?`（${k.exp.toFixed(2)}バ身${hasHeal(k.s)?"・回復は別":""}）`:hasHeal(k.s)?"（回復：スタミナの判定で評価）":"（このレースでは効果なし）"}`).join("、"):(o.multi?(r.pattern===1?"成功：":"失敗："):"")+"スキルなし").join("<br>")}</span>`;
+    const body=`<span class="gt">${o.text?esc(o.text):"（選択肢なし）"}${isRec?'<span class="rec">おすすめ</span>':""}${isSel&&g.opts.length>1?'<span class="selp">取得予定</span>':""}</span><span class="gs">${o.res.map(r=>r.skills.length?r.skills.map(k=>`${o.multi?(r.pattern===1?"成功：":"失敗："):""}${esc(k.s.name)}${k.link?"（シナリオリンク）":` Lv${k.lv}`}${k.heal>1?`（スタミナ不足を約${Math.round(k.heal)}補う・最優先）`:k.exp>0?`（${k.exp.toFixed(2)}バ身${hasHeal(k.s)?"・回復は別":""}）`:hasHeal(k.s)?"（回復：スタミナの判定で評価）":"（このレースでは効果なし）"}`).join("、"):(o.multi?(r.pattern===1?"成功：":"失敗："):"")+"スキルなし").join("<br>")}</span>`;
     return g.opts.length>1?`<button type="button" class="gopt pick-opt${isSel?" best":""}" data-evk="${esc(g.key)}" data-evi="${o.i}" aria-pressed="${isSel}">${body}</button>`:`<div class="gopt best">${body}</div>`}).join("")}</div>`).join("");
   $("#sheet").innerHTML=`
   <div class="sh-top">
@@ -1741,7 +1761,7 @@ function renderSheet(p){
         <span class="btnrow" style="margin:6px 0"><button type="button" class="btn sm" id="inhRec">おすすめ6件を選ぶ</button><button type="button" class="btn sm" id="inhAny">ほかのウマ娘から選ぶ</button>${st.inherit.length?'<button type="button" class="btn sm" id="inhClear">選択を外す</button>':""}</span>
         ${m.cands.length?`<ul class="ulist ilist">${inhList}</ul>`:"有効な候補なし"}</span></div>
     </div>`)}
-    ${d.guide.length?sec("guide","イベントの選び方（サポカ・シナリオ）",`<p class="hint">金スキルが取れるイベントだけを表示しています。選択肢をタップすると取得予定を変更できます。初期値はおすすめの選択肢で、ここに出ていないイベントもおすすめの選択肢を取る前提で判定しています。</p><div class="guide">${guideHtml}</div>`):""}
+    ${d.guide.length?sec("guide","イベントの選び方（サポカ・シナリオ）",`<p class="hint">金スキルが取れるイベントだけを表示しています。スタミナが足りないときは、不足を補える回復スキルの選択肢を最優先でおすすめにします。選択肢をタップすると取得予定を変更できます。初期値はおすすめの選択肢で、ここに出ていないイベントもおすすめの選択肢を取る前提で判定しています。</p><div class="guide">${guideHtml}</div>`):""}
     ${sec("skills","スキル判定",`<div style="display:grid;gap:12px">${groups}
       <p class="hint">段階は「おすすめのスキル構成」（使えるSP ${L.budget}ptの中で選んだ${tl.n}件）と連動しています。構成に入るスキルが推奨以上で、そのうち積み上げたときの伸びが大きい上位3分の1（${tl.nMust}件）を必須にしています。構成に入らないスキルは「そのほか（参考）」にまとめて折りたたんでいます。SPの予算を増やすと推奨が増えます。同じ系統（○→◎→金）は、入手できる段階のうち期待バ身が最も高いものを1行で表示しています。上の段階を取るには下の段階も必要なため、SPは下位込みの合計です。持久力温存の回避に必要な回復は必須に入れています。このレースで発動しないスキル：${p.dead.length}件（表示を省略）</p>
     </div>`)}
