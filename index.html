@@ -9,7 +9,7 @@
 <title>ウマ娘 育成プランナー</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
 <style>
 /* Layout: ゲーム画面風。緑のアプリバー、白い角丸パネル、ゲーム風のタブと押し込みボタン。明るい単一テーマで統一。 */
 :root{
@@ -124,6 +124,21 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .slot .top{display:flex;align-items:center;gap:6px;min-width:0}
 .slot .no{width:26px;height:26px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px;flex:0 0 auto}
 .slot.friend .no{background:var(--pink)}
+.pxc{--f:#b9825a;position:relative;flex:0 0 auto;width:40px;height:40px;margin:3px;display:grid;place-items:center;background:color-mix(in srgb,var(--tc) 16%,#fff);
+  box-shadow:0 -3px 0 0 var(--f),0 3px 0 0 var(--f),-3px 0 0 0 var(--f),3px 0 0 0 var(--f),inset 3px 3px 0 0 rgba(255,255,255,.75)}
+.pxc svg{width:30px;height:30px;display:block;image-rendering:pixelated}
+.pxc.r-SSR{--f:#e3a400;background:linear-gradient(135deg,#fff6c9 0 22%,color-mix(in srgb,var(--tc) 18%,#fff) 22% 78%,#ffe3f1 78%)}
+.pxc.r-SR{--f:#93a3b8}
+.pxc i{position:absolute;right:-6px;bottom:-7px;font:10px/1.25 "DotGothic16",monospace;font-style:normal;color:#fff;background:var(--f);padding:0 3px;letter-spacing:.04em}
+.pxc.sm{width:32px;height:32px}.pxc.sm svg{width:24px;height:24px}
+.pxc.r-SSR::after{content:"";position:absolute;left:4px;top:4px;width:3px;height:3px;background:#fff;box-shadow:3px 3px 0 #fff,-0px 6px 0 rgba(255,255,255,.6)}
+.pxm{--h:200;flex:0 0 auto;width:38px;height:38px;margin:3px;display:grid;place-items:center;font:21px/1 "DotGothic16",monospace;color:hsl(var(--h) 45% 30%);background:hsl(var(--h) 75% 90%);
+  box-shadow:0 -3px 0 0 hsl(var(--h) 45% 55%),0 3px 0 0 hsl(var(--h) 45% 55%),-3px 0 0 0 hsl(var(--h) 45% 55%),3px 0 0 0 hsl(var(--h) 45% 55%),inset 3px 3px 0 0 rgba(255,255,255,.7)}
+.pxm.sm{width:30px;height:30px;font-size:17px}
+.pick>.pxc,.opt>.pxc{flex:0 0 auto!important;width:40px;min-width:0}.pick>.pxc.sm,.opt>.pxc.sm{width:32px}
+.pick>.pxm,.opt>.pxm{flex:0 0 auto!important;width:38px}.pick>.pxm.sm,.opt>.pxm.sm{width:30px}
+.pxm{display:block!important;text-align:center;line-height:42px}.pxm.sm{line-height:34px}
+.pxn{font-family:"DotGothic16","M PLUS Rounded 1c",sans-serif!important;font-weight:400!important;letter-spacing:.02em}
 .type{font-size:11px;font-weight:800;color:#fff;border-radius:6px;padding:1px 8px}
 .chips{display:flex;flex-wrap:wrap;gap:4px}
 .chip{font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--sunk);color:var(--muted)}
@@ -539,6 +554,29 @@ const RANKS=["S","A","B","C","D","E","F","G"];
 const STYLES=["逃げ","先行","差し","追込"];
 const EVENTS=["チャンミ","LoH","任意"];
 const TRACK_ORDER=["札幌","函館","新潟","福島","中山","東京","中京","京都","阪神","小倉","大井","川崎","船橋","盛岡","ロンシャン","サンタアニタパーク","デルマー"];
+// ===== ドット絵のアイコン（画像は使わず、10×10のドットで描く）。a＝ふち、b＝カードの種類の色、w＝白 =====
+const PX_SPRITES={
+  スピード:["..........","..aaa.....","..abba....","..abbba...","..abbbbaa.",".aabbbbbba","aawwwwwwwa","abbbbbbbba",".aaaaaaaa.",".........."],
+  スタミナ:["..........",".aa....aa.","abba..abba","abbbaabbba","abwbbbbbba","abbbbbbbba",".abbbbbba.","..abbbba..","...abba...","....aa...."],
+  パワー:["..........",".a......a.","aba....aba","abaaaaaaba","abwwwwwwba","abaaaaaaba","aba....aba",".a......a.","..........",".........."],
+  根性:["....a.....","...aba....","...abba...","..abbba.a.","..abbbbaba",".abbwbbbba",".abwwwbbba",".abwwwwba.","..abwwba..","...aaaa..."],
+  賢さ:["...aaaa...","..abbbba..",".abwbbbba.",".abwbbbba.",".abbbbbba.","..abbbba..","...abba...","...aaaa...","...abba...","....aa...."],
+  友人:["..........",".aaaaaaaa.","abbbbbbbba","abwbbbwbba","abbbbbbbba","abwbbbbwba","abbwwwwbba",".aaabaaaa.","...ab.....","...a......"],
+  グループ:["....aa....","...abba...","aaaabbaaaa","abbbbbbbba",".abbwbbba.","..abbbba..",".abbaabba.",".aba..aba.",".aa....aa.",".........."],
+};
+const PX_CACHE=new Map();
+// 横に続く同じ色のドットを1本の長方形にまとめた SVG
+function pxSvg(type){
+  if(PX_CACHE.has(type))return PX_CACHE.get(type);
+  const rows=PX_SPRITES[type]||PX_SPRITES["友人"],fill={a:"#3b2f4a",b:"var(--tc)",w:"#fff"};let r="";
+  rows.forEach((row,y)=>{for(let x=0;x<row.length;){const c=row[x];let w=1;while(x+w<row.length&&row[x+w]===c)w++;if(fill[c])r+=`<rect x="${x}" y="${y}" width="${w}" height="1" style="fill:${fill[c]}"/>`;x+=w}});
+  const svg=`<svg viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;PX_CACHE.set(type,svg);return svg;
+}
+// サポカのドットアイコン（種類の絵＋レアリティの枠と札）
+const pxCard=(cd,sm)=>`<span class="pxc r-${esc(cd.rarity)}${sm?" sm":""}" style="--tc:${typeColor(cd.type)}" title="${esc(cd.rarity+" "+cd.type)}">${pxSvg(cd.type)}<i>${esc(cd.rarity)}</i></span>`;
+// 育成ウマ娘のドットの名札（名前の1文字目。色は名前から決める）
+const pxHue=t=>{let h=0;for(const ch of String(t))h=(h*31+ch.charCodeAt(0))%360;return h};
+const pxChara=(c,sm)=>`<span class="pxm${sm?" sm":""}" style="--h:${pxHue(c.name)}" aria-hidden="true">${esc([...c.name][0]||"?")}</span>`;
 const TYPE_COLOR={シナリオ:"#2fa37a",スピード:"var(--c-spd)",スタミナ:"var(--c-sta)",パワー:"var(--c-pow)",根性:"var(--c-gut)",賢さ:"var(--c-wit)",友人:"#f5a524",グループ:"#a77fd9"};
 const EFFECT_JA={speed:"速度",accel:"加速",heal:"回復",stat:"ステータス",forward:"前に出る",lane:"レーン移動",other:"その他"};
 const ZONE_JA={early:"序盤",mid:"中盤",late:"終盤",corner:"コーナー",straight:"直線",finalCorner:"最終コーナー",finalStraight:"最終直線",any:""};
@@ -703,11 +741,11 @@ $("#scenario").addEventListener("change",e=>{const prev=capsOf(scenario());st.sc
 const bestStyle=c=>STYLES.slice().sort((x,y)=>RANKS.indexOf(c.apt[x])-RANKS.indexOf(c.apt[y]))[0];
 function pickChara(title,onPick){
   const items=D.charas.map(c=>({c,search:`${c.name}${c.title}${c.nickname}`}));
-  openPicker({title,items,render:it=>`<span><span class="t">${esc(it.c.title)}</span><span class="n">${esc(it.c.name)}</span></span>`,onPick:it=>onPick(it.c)});
+  openPicker({title,items,render:it=>`${pxChara(it.c,true)}<span><span class="t">${esc(it.c.title)}</span><span class="n pxn">${esc(it.c.name)}</span></span>`,onPick:it=>onPick(it.c)});
 }
 function renderUma(){
   const ch=chara();
-  $("#charaPick").innerHTML=`<span><span class="t">${esc(ch.title)}</span><span class="n">${esc(ch.name)}</span></span><span class="chg">変更 ›</span>`;
+  $("#charaPick").innerHTML=`${pxChara(ch)}<span><span class="t">${esc(ch.title)}</span><span class="n pxn">${esc(ch.name)}</span></span><span class="chg">変更 ›</span>`;
   seg($("#styleSeg"),STYLES,st.style,v=>{st.style=v;st.apt=null;dirty();renderApt()});
   renderApt();
   ["spd","sta","pow","gut","wit"].forEach(k=>$("#st-"+k).value=st.stats[k]);
@@ -755,7 +793,7 @@ function renderDeckInto(wrap,arr,changed,recFn){
     const sk=cd?cardSkills(cd,farm,ft):[];
     const shown=farm?Math.max(10,sk.filter(o=>o.hit).length):10;
     d.innerHTML=`<div class="top"><span class="no">${i+1}</span><span style="font-weight:800;font-size:13px;white-space:nowrap">枠${i+1}${i===5?'<small style="font-size:10.5px;color:var(--muted);margin-left:3px">フレンド</small>':""}</span>${cd?`<span class="type" style="background:${typeColor(cd.type)}">${esc(cd.rarity)} ${esc(cd.type)}</span><button class="xbtn" type="button" data-clear aria-label="このカードを外す" title="外す">✕</button>`:""}</div>
-      <button class="pick" type="button">${cd?`<span><span class="t">${esc(cd.title)}</span><span class="n">${esc(cd.name)}</span></span>`:`<span class="n" style="color:var(--muted)">カードを選ぶ</span>`}<span class="chg">${cd?"変更 ›":"選ぶ ›"}</span></button>
+      <button class="pick" type="button">${cd?`${pxCard(cd)}<span style="min-width:0"><span class="t">${esc(cd.title)}</span><span class="n pxn">${esc(cd.name)}</span></span>`:`<span class="n" style="color:var(--muted)">カードを選ぶ</span>`}<span class="chg">${cd?"変更 ›":"選ぶ ›"}</span></button>
       <div class="chips">${sk.slice(0,shown).map(o=>`<span class="chip${o.s.rarity==="gold"?" gold":""}${o.hit?" fhit":""}" data-sid="${o.s.id}">${esc(o.s.name)}</span>`).join("")}${sk.length>shown?`<span class="chip">ほか${sk.length-shown}件</span>`:""}</div>
 `;
     wrap.appendChild(d);
@@ -785,7 +823,7 @@ function pickSupport(i,arr,changed,recFn){
   items.sort((a,b)=>(a.inDeck!=null)-(b.inDeck!=null));
   openPicker({title:`${i===5?"フレンド枠":"枠"+(i+1)}のカード`,items,placeholder:"名前・衣装・取れるスキル名で検索",
     filters:SUPPORT_FILTERS,
-    render:it=>`<span class="type" style="background:${typeColor(it.s.type)}">${esc(it.s.rarity)}</span><span><span class="t">${esc(it.s.title)}</span><span class="n">${esc(it.s.name)}</span>${skLine(it)}${it.inDeck!=null?`<span class="indeck">${it.inDeck===i?"この枠に編成中":`編成中（${it.inDeck===5?"フレンド枠":"枠"+(it.inDeck+1)}）・選ぶとこの枠に移動`}</span>`:it.rec?`<span class="prec"><b>おすすめ</b> 新しく拾える因子：${it.rec.names.map(esc).join("・")}</span>`:""}</span>`,
+    render:it=>`${pxCard(it.s,true)}<span><span class="t">${esc(it.s.title)}</span><span class="n pxn">${esc(it.s.name)}</span>${skLine(it)}${it.inDeck!=null?`<span class="indeck">${it.inDeck===i?"この枠に編成中":`編成中（${it.inDeck===5?"フレンド枠":"枠"+(it.inDeck+1)}）・選ぶとこの枠に移動`}</span>`:it.rec?`<span class="prec"><b>おすすめ</b> 新しく拾える因子：${it.rec.names.map(esc).join("・")}</span>`:""}</span>`,
     onPick:it=>{const k=arr.indexOf(it.s.id);if(k>=0&&k!==i)arr[k]=null;arr[i]=it.s.id;changed()}});
 }
 
@@ -1487,7 +1525,7 @@ function renderTeam(){
   st.team=Array.isArray(st.team)?st.team.slice(0,2):[];
   const ch=chara();
   const rowMain=`<div class="mrow"><div class="mhead"><span class="no">1人目</span><span class="nm"><small>${esc(ch?ch.title:"")}</small>${esc(ch?ch.name:"（ウマ娘タブで選択）")}</span><span class="hint">${esc(st.style)}</span></div><span class="hint">1人目はプランの設定のまま（ウマ娘タブで変更）</span></div>`;
-  const rows=st.team.map((m,i)=>{const c=D.charas.find(x=>x.id===m.charaId);return`<div class="mrow"><div class="mhead"><span class="no">${i+2}人目</span><button class="pick" type="button" data-tpick="${i}" style="flex:1;min-width:0"><span><span class="t">${esc(c?c.title:"")}</span><span class="n">${esc(c?c.name:"ウマ娘を選ぶ")}</span></span><span class="chg">変更 ›</span></button><button class="btn sm" type="button" data-tdel="${i}" aria-label="外す">✕</button></div><div class="seg" data-tseg="${i}"></div></div>`}).join("");
+  const rows=st.team.map((m,i)=>{const c=D.charas.find(x=>x.id===m.charaId);return`<div class="mrow"><div class="mhead"><span class="no">${i+2}人目</span><button class="pick" type="button" data-tpick="${i}" style="flex:1;min-width:0">${c?pxChara(c,true):""}<span><span class="t">${esc(c?c.title:"")}</span><span class="n${c?" pxn":""}">${esc(c?c.name:"ウマ娘を選ぶ")}</span></span><span class="chg">変更 ›</span></button><button class="btn sm" type="button" data-tdel="${i}" aria-label="外す">✕</button></div><div class="seg" data-tseg="${i}"></div></div>`}).join("");
   $("#teamMembers").innerHTML=rowMain+rows;
   st.team.forEach((m,i)=>seg($(`[data-tseg="${i}"]`),STYLES,m.style,v=>{m.style=v;persist()}));
   $("#teamMembers").querySelectorAll("[data-tpick]").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.tpick;
@@ -1561,11 +1599,11 @@ function renderVerify(){
   $("#vSlots").innerHTML=st.deck.map((id,i)=>{const cd=SP[id];return`<button type="button" data-vs="${i}" aria-pressed="${v.slot===i}"><span class="t">枠${i+1}${i===5?"（フレンド）":""}${cd?"・"+esc(cd.rarity+" "+cd.type):""}</span><span class="n">${cd?esc(cd.name):"（空き）"}</span></button>`}).join("");
   $("#vSlots").querySelectorAll("[data-vs]").forEach(b=>b.addEventListener("click",()=>{v.slot=+b.dataset.vs;persist();renderVerify()}));
   const cd=SP[v.cand];
-  $("#vCand").innerHTML=`<button class="pick" type="button" id="vPick">${cd?`<span class="type" style="background:${typeColor(cd.type)};color:#fff;font-size:11px;font-weight:800;padding:1px 6px;border-radius:999px">${esc(cd.rarity)} ${esc(cd.type)}</span><span><span class="t">${esc(cd.title)}</span><span class="n">${esc(cd.name)}</span></span>`:`<span class="n" style="color:var(--muted)">カードを選ぶ</span>`}<span class="chg">${cd?"変更 ›":"選ぶ ›"}</span></button>`;
+  $("#vCand").innerHTML=`<button class="pick" type="button" id="vPick">${cd?`${pxCard(cd)}<span><span class="t">${esc(cd.title)}</span><span class="n pxn">${esc(cd.name)}</span></span>`:`<span class="n" style="color:var(--muted)">カードを選ぶ</span>`}<span class="chg">${cd?"変更 ›":"選ぶ ›"}</span></button>`;
   $("#vPick").addEventListener("click",()=>{
     openPicker({title:"候補のカード",items:supportItems(),
       filters:SUPPORT_FILTERS,
-      render:it=>`<span class="type" style="background:${typeColor(it.s.type)}">${esc(it.s.rarity)}</span><span><span class="t">${esc(it.s.title)}</span><span class="n">${esc(it.s.name)}</span></span>`,
+      render:it=>`${pxCard(it.s,true)}<span><span class="t">${esc(it.s.title)}</span><span class="n pxn">${esc(it.s.name)}</span></span>`,
       onPick:it=>{v.cand=it.s.id;persist();renderVerify()}});
   });
 }
