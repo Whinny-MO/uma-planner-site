@@ -1274,6 +1274,24 @@ function lineagePlans(trainee,sel,pins){
   const plans=[...best.values()].sort((x,y)=>y.total-x.total).slice(0,3);
   return{plans,forced:mem.filter(u=>u.evo)};
 }
+// 「ウマ娘設計図」（design.u-ma.org）の共有URLを作る。サイトの共有形式（版1）に合わせたバイト列を base64url にする：
+//  [版=1] [育成ウマ娘 2バイト] [親×2 各3バイト] [祖×4 各3バイト] [祖祖×8 各2バイト] [曾祖×16 各2バイト] [バッジ 15バイト] [メモ32件を\0区切り]
+//  ウマ娘はサイト内の一覧の番号（並び順＋1、0＝空き）。適性・ステータスの因子やバッジは入れない
+function designUrl(lg,trainee,title){
+  const list=D.designUma||[];const idx=id=>{const i=list.indexOf(id);return i<0?0:i+1};
+  const b=[1];const u16=v=>b.push(v&255,(v>>8)&255),u24=v=>b.push(v&255,(v>>8)&255,(v>>16)&255);
+  u16(idx(trainee.id));
+  for(const k of ["p1","p2"])u24(lg.a[k]?idx(lg.a[k].x.id):0);
+  for(const k of ["g11","g12","g21","g22"])u24(lg.a[k]?idx(lg.a[k].x.id):0);
+  for(let i=0;i<24;i++)u16(0);
+  for(let i=0;i<15;i++)b.push(0);
+  const memo=u=>u?`継承固有：${u.s.name}${u.evo?"（継承進化）":""}`:"";
+  const notes=["",memo(lg.a.p1),memo(lg.a.p2),memo(lg.a.g11),memo(lg.a.g12),memo(lg.a.g21),memo(lg.a.g22),...Array(24).fill(""),title||""];
+  const bytes=new Uint8Array([...b,...new TextEncoder().encode(notes.join("\0"))]);
+  let bin="";bytes.forEach(x=>bin+=String.fromCharCode(x));
+  return "https://design.u-ma.org/?d="+btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+const designMissing=(lg,trainee)=>{const list=D.designUma||[];return [trainee,...["p1","p2","g11","g12","g21","g22"].map(k=>lg.a[k]&&lg.a[k].x)].filter(c=>c&&!list.includes(c.id)).map(c=>c.name)};
 // 継承固有の比較：2〜3件を、同じ土台（手持ちの推奨以上のスキル・回復と、比べる以外の選んだ継承固有）に1件だけ足したときで比べる
 function inhCompare(p,d,ids){
   const ctx=p.ctx,byId=new Map(p.inhAll.map(u=>[u.s.id,u]));
@@ -1904,7 +1922,8 @@ function renderSheet(p){
       <div class="lbr wide"><span>親どうし +${lgP.parts.pp}</span></div>
       <div class="lbranch">${["1","2"].map(n=>`<div class="lside">${lgBox("p"+n,"親"+n,lgP.parts["p"+n])}<div class="lbr"></div><div class="lgrand">${lgBox("g"+n+"1","祖"+n+"-1",lgP.parts["g"+n+"1"])}${lgBox("g"+n+"2","祖"+n+"-2",lgP.parts["g"+n+"2"])}</div></div>`).join("")}</div>
     </div>
-    <p class="hint">上から育成ウマ娘・親・祖父母の順です。数字は相性の点（親：育成ウマ娘との相性、祖父母：育成ウマ娘・親との3人の相性、親どうし：親2人の相性）。目安は◎151pt以上・○51pt以上ですが、ここではG1の勝ちボーナスを入れていないので、実際はこれより高くなります。人をタップすると「おまかせ→親に固定→祖父母に固定」と切り替わり、固定を守ったまま並べ直します。${LG.forced.length>2?"継承進化する継承固有が3件以上あるため、すべては親にできません。":""}相性データ：<a href="${esc(D.relation.url)}" target="_blank" rel="noopener">${esc(D.relation.source)}</a>。</p>
+    ${D.designUma?(()=>{const c=course(),miss=designMissing(lgP,lgCh);return`<p style="margin:4px 0 8px"><a class="btn sm" href="${esc(designUrl(lgP,lgCh,`${c.track}${c.surface}${c.dist}m ${st.style}`))}" target="_blank" rel="noopener">ウマ娘設計図で開く ↗</a></p>${miss.length?`<p class="hint">設計図サイトにまだいないウマ娘（${miss.map(esc).join("、")}）は空きになります。</p>`:""}`})():""}
+    <p class="hint">上から育成ウマ娘・親・祖父母の順です。数字は相性の点（親：育成ウマ娘との相性、祖父母：育成ウマ娘・親との3人の相性、親どうし：親2人の相性）。目安は◎151pt以上・○51pt以上ですが、ここではG1の勝ちボーナスを入れていないので、実際はこれより高くなります。人をタップすると「おまかせ→親に固定→祖父母に固定」と切り替わり、固定を守ったまま並べ直します。${LG.forced.length>2?"継承進化する継承固有が3件以上あるため、すべては親にできません。":""}相性データ：<a href="${esc(D.relation.url)}" target="_blank" rel="noopener">${esc(D.relation.source)}</a>。「ウマ娘設計図で開く」は、この並びを<a href="https://design.u-ma.org/" target="_blank" rel="noopener">ウマ娘設計図</a>（ファンメイドの継承設計ツール）に読み込んだ状態で開きます。親・祖父母のメモ欄に継承固有の名前を入れています。</p>
   </details>`;
   // 継承固有の比較
   st.inhCmp=(st.inhCmp||[]).filter(id=>p.inhAll.some(u=>u.s.id===id)).slice(0,3);
