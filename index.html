@@ -138,6 +138,10 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .pick>.pxc,.opt>.pxc{flex:0 0 auto!important;width:40px;min-width:0}.pick>.pxc.sm,.opt>.pxc.sm{width:32px}
 .pick>.pxm,.opt>.pxm{flex:0 0 auto!important;width:38px}.pick>.pxm.sm,.opt>.pxm.sm{width:30px}
 .pxm{display:block!important;text-align:center;line-height:42px}.pxm.sm{line-height:34px}
+.tblwrap{overflow-x:auto}.ictbl{width:100%;border-collapse:collapse;font-size:12.5px}.ictbl th{font-size:11px;color:var(--muted);text-align:left;font-weight:800;padding:4px 6px;border-bottom:2px solid var(--line)}
+.ictbl td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top}.ictbl td small{display:block;color:var(--muted);font-weight:600}
+.ictbl td.num{font-weight:800;white-space:nowrap}.ictbl tr.icbest td{background:var(--green-soft)}
+.icx{border:0;background:none;color:var(--muted);font:inherit;font-weight:800;cursor:pointer;padding:0 0 0 4px}
 .pxn{font-family:"DotGothic16","M PLUS Rounded 1c",sans-serif!important;font-weight:400!important;letter-spacing:.02em}
 .type{font-size:11px;font-weight:800;color:#fff;border-radius:6px;padding:1px 8px}
 .chips{display:flex;flex-wrap:wrap;gap:4px}
@@ -1206,6 +1210,32 @@ function farmCover(fac,ids){
   return{who,tc:{top:cnt("top"),high:cnt("high"),norm:cnt("norm")},miss:[...fac.top,...fac.high].filter(x=>!who.has(x.s.id))};
 }
 
+// 継承固有の比較：2〜3件を、同じ土台（手持ちの推奨以上のスキル・回復と、比べる以外の選んだ継承固有）に1件だけ足したときで比べる
+function inhCompare(p,d,ids){
+  const ctx=p.ctx,byId=new Map(p.inhAll.map(u=>[u.s.id,u]));
+  const cmp=ids.map(id=>byId.get(id)).filter(Boolean);
+  if(cmp.length<2)return null;
+  const others=(st.inherit||[]).filter(id=>!ids.includes(id)).map(id=>byId.get(id)).filter(Boolean);
+  const ownHeals=plansOf(ctx,d.reps.filter(x=>x.s.effect==="heal"&&x.route&&x.route.kind==="own"&&x.r.ok&&pinOf(x.s.id)!=="never").map(x=>x.s));
+  const otherHeal=plansOf(ctx,others.filter(u=>u.s.effect==="heal").map(u=>u.s));
+  const ownTaken=d.reps.filter(x=>x.route&&x.route.kind==="own"&&x.r.ok&&x.s.effect!=="heal"&&pinOf(x.s.id)!=="never"&&(x.tierBase==="must"||x.tierBase==="rec"));
+  const base=ownHeals.concat(otherHeal,plansOf(ctx,ownTaken.map(x=>x.s)),plansOf(ctx,others.filter(u=>u.s.effect!=="heal").map(u=>u.s)));
+  const run0=UmaSim.run(ctx,base);
+  const healBase=ownHeals.concat(otherHeal,dbOf(ctx));
+  const short0=shortOf(UmaSim.run(p.ctxC,healBase));
+  const rows=cmp.map(u=>{
+    const pl=UmaSim.planSkill(ctx,u.s,.5);
+    const gain=expVal(u.s,addBashin(ctx,u.s,base,run0),p.rate,{passive:isPassive(u.s)});
+    let heal=null,reach=null;
+    if(u.s.effect==="heal"){const after=shortOf(UmaSim.run(p.ctxC,healBase.concat(pl)));heal={before:short0,after}}
+    if(u.s.effect==="accel"&&u.r.ok){const r1=UmaSim.run(ctx,base.concat(pl));reach={before:run0,after:r1}}
+    return{u,gain,heal,reach,pos:pl.length?pl[0].pos:null,random:!!u.r.random};
+  });
+  // 並び：スタミナが足りないときは不足を減らせる回復を先、それ以外は増える分の大きい順
+  const healCut=r=>r.heal?Math.max(0,r.heal.before-r.heal.after):0;
+  rows.sort((a,b)=>(short0>0?healCut(b)-healCut(a):0)||b.gain-a.gain);
+  return{rows,short0};
+}
 // 継承固有の選択・集計（選択を変えたときはここだけやり直す）
 function summarize(p,d){
   const ctx=p.ctx;
@@ -1786,6 +1816,21 @@ function renderSheet(p){
   const inhBtn=u=>{const on=st.inherit.includes(u.s.id),rec=m.recIds.includes(u.s.id);
     return `<li><button type="button" class="ipick${on?" on":""}" data-inh="${esc(u.s.id)}" aria-pressed="${on}"${!on&&full?" disabled":""}><span class="ck" aria-hidden="true">${on?"✓":""}</span><span class="tx">${esc(u.s.name)}${u.evo?'<span class="rec" style="background:var(--evo-b)">継承進化</span>':""}${rec?'<span class="rec">おすすめ</span>':""}<small>${esc(u.x.title)} ${esc(u.x.name)}・${esc(EFFECT_JA[u.s.effect]||"")}</small></span><b>${(u.mexp??u.exp).toFixed(2)}バ身</b></button></li>`};
   const inhList=m.cands.map(inhBtn).join("");
+  // 継承固有の比較
+  st.inhCmp=(st.inhCmp||[]).filter(id=>p.inhAll.some(u=>u.s.id===id)).slice(0,3);
+  const ic=inhCompare(p,d,st.inhCmp);
+  const icName=id=>{const u=p.inhAll.find(v=>v.s.id===id);return u?u.s.name:id};
+  const icRow=(r,k)=>{const u=r.u;const notes=[];
+    if(r.heal)notes.push(r.heal.before>0?`スタミナ不足 約${Math.round(r.heal.before)}→${r.heal.after>0?"約"+Math.round(r.heal.after):"解消"}`:"スタミナは足りている（回復の効果は獲得バ身に入れていません）");
+    if(r.reach){const a=r.reach.before,b=r.reach.after;notes.push(a.reachPos!=null&&b.reachPos!=null?`最高速度に届く地点 約${Math.round(a.reachPos-a.lateStart)}m→約${Math.round(b.reachPos-b.lateStart)}m`:"")}
+    if(!u.r.ok)notes.push("このレースでは発動しない");
+    else if(r.pos!=null)notes.push(`${r.random?"ランダム位置（中央）":"発動"}：約${Math.round(r.pos)}m地点`);
+    return`<tr class="${k===0?"icbest":""}"><td><b>${esc(u.s.name)}</b><small>${esc(u.x.title)}${esc(u.x.name)}</small></td><td class="num">${r.gain.toFixed(2)}<small>単独 ${u.exp.toFixed(2)}</small></td><td><small>${notes.filter(Boolean).map(esc).join("<br>")}</small></td></tr>`};
+  const icHtml=`<div class="icmp"><p class="lbl" style="margin:8px 0 4px">2〜3件を比べる</p>
+    <span class="btnrow" style="margin:0 0 6px">${st.inhCmp.map(id=>`<span class="chip">${esc(icName(id))} <button type="button" class="icx" data-icdel="${id}" aria-label="外す">✕</button></span>`).join("")}${st.inhCmp.length<3?'<button type="button" class="btn sm" id="icAdd">＋比べる候補を追加</button>':""}${st.inhCmp.length?'<button type="button" class="btn sm" id="icClear">比較をやめる</button>':""}</span>
+    ${ic?`<div class="tblwrap"><table class="ictbl"><thead><tr><th>継承固有</th><th>増える分</th><th>補足</th></tr></thead><tbody>${ic.rows.map(icRow).join("")}</tbody></table></div>
+      <p class="hint">「増える分」は、手持ちの推奨以上のスキル・回復と、比べている以外の選んだ継承固有に、1件だけ足して走らせたときの期待バ身です（「単独」は何も足さずに走らせたとき）。${ic.short0>0?"スタミナが足りないので、不足を減らせる回復を上に並べています。":"上ほど強い順です。"}<b>${esc(ic.rows[0].u.s.name)}</b>がいちばんおすすめです。</p>`
+      :st.inhCmp.length===1?'<p class="hint">もう1件以上追加すると比べられます。</p>':'<p class="hint">親にするか迷っている継承固有を2〜3件選ぶと、同じ条件で並べて比べます。</p>'}</div>`;
   const ftb=p.ctx.ft.on?UmaSim.run(p.ctx,p.ownHealPlans):null;
   const spdNote=p.ctx.ft.on
     ?`<p class="hint" style="color:var(--opt)">全開スパートを仮モデルで計算しています（上昇量の上限${S.ftGain}m/s・伸びの係数${S.ftCoef}）。${ftb&&ftb.ftStart!=null?`残り約${Math.round(p.c.dist-ftb.ftStart)}mで発動し、ゴールまでに最高速度が約${ftb.ftGain.toFixed(2)}m/s上がる想定です。`:"この条件では全力スパートの最高速度に届かないか、スピードが2000以下のため発動しない想定です。"}</p>`
@@ -1824,7 +1869,7 @@ function renderSheet(p){
       <div class="frow"><span class="fpill fp-white">白因子</span><span>「因子化するスキル」を参照</span></div>
       <div class="frow stack"><span class="fpill fp-uniq">継承固有</span><span><span class="hint">親・祖父母に使う最大6件を選んでください（選択中 ${st.inherit.length}/6）。選んだ回復・加速はスタミナと加速の判定に入ります。数字は、手持ちのスキル（推奨以上）と合わせて走らせたときに増える分で、おすすめは効果が重ならないように1件ずつ積み上げて選んでいます。</span>
         <span class="btnrow" style="margin:6px 0"><button type="button" class="btn sm" id="inhRec">おすすめ6件を選ぶ</button><button type="button" class="btn sm" id="inhAny">ほかのウマ娘から選ぶ</button>${st.inherit.length?'<button type="button" class="btn sm" id="inhClear">選択を外す</button>':""}</span>
-        ${m.cands.length?`<ul class="ulist ilist">${inhList}</ul>`:"有効な候補なし"}</span></div>
+        ${m.cands.length?`<ul class="ulist ilist">${inhList}</ul>`:"有効な候補なし"}${icHtml}</span></div>
     </div>`)}
     ${d.guide.length?sec("guide","イベントの選び方（サポカ・シナリオ）",`<p class="hint">金スキルが取れるイベントだけを表示しています。スタミナが足りないときは、不足を補える回復スキルの選択肢を最優先でおすすめにします。選択肢をタップすると取得予定を変更できます。初期値はおすすめの選択肢で、ここに出ていないイベントもおすすめの選択肢を取る前提で判定しています。</p><div class="guide">${guideHtml}</div>`):""}
     ${sec("skills","スキル判定",`<div style="display:grid;gap:12px">${groups}
@@ -1841,6 +1886,13 @@ function renderSheet(p){
   $("#sheet").querySelectorAll("[data-evk]").forEach(b=>b.addEventListener("click",()=>{st.evChoice[b.dataset.evk]=+b.dataset.evi;renderSheet(p)}));
   const r1=$("#inhRec");if(r1)r1.addEventListener("click",()=>{st.inherit=m.recIds.slice(0,6);renderSheet(p)});
   const r2=$("#inhClear");if(r2)r2.addEventListener("click",()=>{st.inherit=[];renderSheet(p)});
+  const icA=$("#icAdd");if(icA)icA.addEventListener("click",()=>{
+    const items=p.inhAll.filter(u=>!st.inhCmp.includes(u.s.id)).map(u=>({u,search:`${u.s.name}${u.x.name}${u.x.title}${u.x.nickname||""}`}));
+    openPicker({title:"比べる継承固有",items,placeholder:"スキル名・ウマ娘の名前で検索",render:it=>`${pxChara(it.u.x,true)}<span style="flex:1"><span class="t">${esc(it.u.x.title)} ${esc(it.u.x.name)}</span><span class="n">${esc(it.u.s.name)}</span></span><b style="white-space:nowrap">${it.u.r.ok?it.u.exp.toFixed(2)+"バ身":"発動しない"}</b>`,
+      onPick:it=>{if(st.inhCmp.length<3&&!st.inhCmp.includes(it.u.s.id))st.inhCmp.push(it.u.s.id);persist();renderSheet(p)}});
+  });
+  $("#sheet").querySelectorAll("[data-icdel]").forEach(b=>b.addEventListener("click",()=>{st.inhCmp=st.inhCmp.filter(id=>id!==b.dataset.icdel);persist();renderSheet(p)}));
+  const icC=$("#icClear");if(icC)icC.addEventListener("click",()=>{st.inhCmp=[];persist();renderSheet(p)});
   const r3=$("#inhAny");if(r3)r3.addEventListener("click",()=>{
     const items=p.inhAll.map(u=>({u,search:`${u.s.name}${u.x.name}${u.x.title}${u.x.nickname||""}`}));
     openPicker({title:"継承固有を選ぶ",items,render:it=>`<span style="flex:1"><span class="t">${esc(it.u.x.title)} ${esc(it.u.x.name)}</span><span class="n">${esc(it.u.s.name)}</span></span><b style="white-space:nowrap">${it.u.r.ok?it.u.exp.toFixed(2)+"バ身":"発動しない"}</b>`,
