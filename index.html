@@ -574,7 +574,7 @@ button.gopt{font:inherit;text-align:left;cursor:pointer;color:var(--ink);width:1
   </section>
 </div>
 
-<script src="engine/umasim.js"></script>
+<script src="engine/umasim.js?v=5ae4edf515"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
@@ -2160,7 +2160,7 @@ function renderAll(){renderRace();renderUma();renderDeck();renderSaved()}
 /* ---------- 起動 ---------- */
 (async()=>{
   try{
-    const res=await fetch("data/planner-data.json");if(!res.ok)throw new Error("HTTP "+res.status);
+    const res=await fetch("data/planner-data.json?v=189e666783");if(!res.ok)throw new Error("HTTP "+res.status);
     D=await res.json();
     NON_INH=new Set(((D.rules&&D.rules.nonInheritable)||[]).map(x=>String(x.id)));
     SCN=((D.scenarios&&D.scenarios.scenarios)||[]);
