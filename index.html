@@ -143,10 +143,9 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .lbranch{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .lside{display:grid;justify-items:stretch;min-width:0}
 .lgrand{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-.lbr{height:12px;margin:0 25%;border:2px solid var(--line);border-top:0;border-radius:0 0 6px 6px;position:relative}
-.lbr::after{content:"";position:absolute;left:50%;bottom:-8px;width:2px;height:8px;background:var(--line)}
-.lside>.lbr{margin-bottom:8px}
-.lbr.wide{margin:0 25% 10px;height:14px;font-size:10.5px;color:var(--muted);font-weight:700;text-align:center}.lbr.wide span{position:absolute;left:0;right:0;top:-2px}
+.lbr{height:12px;margin:8px 25% 0;border:2px solid var(--line);border-bottom:0;border-radius:6px 6px 0 0;position:relative}
+.lbr::before{content:"";position:absolute;left:50%;top:-10px;width:2px;height:8px;background:var(--line)}
+.lbr.wide{margin:10px 25% 0;height:14px;font-size:10.5px;color:var(--muted);font-weight:700;text-align:center}.lbr.wide span{position:absolute;left:0;right:0;top:-1px}
 .lroot{display:flex;justify-content:center}
 .lgb{display:grid;justify-items:center;gap:1px;text-align:center;font:inherit;color:var(--ink);background:var(--sunk);border:2px solid var(--line);border-radius:10px;padding:6px 4px;min-width:0;cursor:pointer}
 .lgb.par{border-color:var(--green)}.lgb.pinned{border-color:var(--pink);background:#fff4f8}.lgb.root{cursor:default;min-width:46%;border-color:var(--ink)}
@@ -1889,11 +1888,11 @@ function renderSheet(p){
     <p class="lbl" style="margin:10px 0 4px">継承の組み方（相性）</p>
     <div class="lgsum"><span class="lgmk">${relMark(lgP.total)}</span><span>相性 <b>${lgP.total}</b>pt</span>${LG.plans.length>1?`<span class="btnrow" style="margin-left:auto">${LG.plans.map((q,i)=>`<button type="button" class="btn sm${i===lgAlt?" on":""}" data-lgalt="${i}">${i===0?"おすすめ":"別案"+i}（${q.total}）</button>`).join("")}</span>`:""}</div>
     <div class="ltree">
-      <div class="lbranch">${["1","2"].map(n=>`<div class="lside"><div class="lgrand">${lgBox("g"+n+"1","祖"+n+"-1",lgP.parts["g"+n+"1"])}${lgBox("g"+n+"2","祖"+n+"-2",lgP.parts["g"+n+"2"])}</div><div class="lbr"></div>${lgBox("p"+n,"親"+n,lgP.parts["p"+n])}</div>`).join("")}</div>
-      <div class="lbr wide"><span>親どうし +${lgP.parts.pp}</span></div>
       <div class="lroot"><div class="lgb root">${pxChara(lgCh,true)}<span class="lgn pxn">${esc(lgCh.name)}</span><span class="lgs">育成ウマ娘</span></div></div>
+      <div class="lbr wide"><span>親どうし +${lgP.parts.pp}</span></div>
+      <div class="lbranch">${["1","2"].map(n=>`<div class="lside">${lgBox("p"+n,"親"+n,lgP.parts["p"+n])}<div class="lbr"></div><div class="lgrand">${lgBox("g"+n+"1","祖"+n+"-1",lgP.parts["g"+n+"1"])}${lgBox("g"+n+"2","祖"+n+"-2",lgP.parts["g"+n+"2"])}</div></div>`).join("")}</div>
     </div>
-    <p class="hint">数字は相性の点（親：育成ウマ娘との相性、祖父母：育成ウマ娘・親との3人の相性、親どうし：親2人の相性）。目安は◎151pt以上・○51pt以上ですが、ここではG1の勝ちボーナスを入れていないので、実際はこれより高くなります。人をタップすると「おまかせ→親に固定→祖父母に固定」と切り替わり、固定を守ったまま並べ直します。${LG.forced.length>2?"継承進化する継承固有が3件以上あるため、すべては親にできません。":""}相性データ：<a href="${esc(D.relation.url)}" target="_blank" rel="noopener">${esc(D.relation.source)}</a>。</p>
+    <p class="hint">上から育成ウマ娘・親・祖父母の順です。数字は相性の点（親：育成ウマ娘との相性、祖父母：育成ウマ娘・親との3人の相性、親どうし：親2人の相性）。目安は◎151pt以上・○51pt以上ですが、ここではG1の勝ちボーナスを入れていないので、実際はこれより高くなります。人をタップすると「おまかせ→親に固定→祖父母に固定」と切り替わり、固定を守ったまま並べ直します。${LG.forced.length>2?"継承進化する継承固有が3件以上あるため、すべては親にできません。":""}相性データ：<a href="${esc(D.relation.url)}" target="_blank" rel="noopener">${esc(D.relation.source)}</a>。</p>
   </div>`;
   // 継承固有の比較
   st.inhCmp=(st.inhCmp||[]).filter(id=>p.inhAll.some(u=>u.s.id===id)).slice(0,3);
