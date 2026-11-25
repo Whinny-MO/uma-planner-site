@@ -141,7 +141,8 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .lgwrap>summary{margin:12px 0 8px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;min-height:48px;padding:10px 14px;border:2px solid var(--line);border-radius:12px;background:var(--sunk);font-size:15px;font-weight:800;color:var(--ink);-webkit-tap-highlight-color:transparent}
 .lgwrap>summary::-webkit-details-marker{display:none}
 .lgwrap>summary::before{content:"▶";font-size:12px;color:var(--green-dd);transition:transform .15s}.lgwrap[open]>summary::before{transform:rotate(90deg)}
-.lgwrap>summary::after{content:"開く";margin-left:auto;font-size:12px;font-weight:800;color:var(--green-dd)}.lgwrap[open]>summary::after{content:"閉じる"}
+.lgwrap>summary::after{content:"開く";margin-left:auto;flex:0 0 auto;white-space:nowrap;font-size:12px;font-weight:800;color:var(--green-dd)}
+.lgwrap>summary::before{flex:0 0 auto}.lgwrap[open]>summary::after{content:"閉じる"}
 .lgwrap>summary:active{background:var(--green-soft)}
 .lgsum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}.lgmk{font-size:22px;font-weight:800;color:var(--green-dd)}
 .ltree{display:grid;gap:0;margin:4px 0 8px}
@@ -156,7 +157,7 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .lgb.par{border-color:var(--green)}.lgb.pinned{border-color:var(--pink);background:#fff4f8}.lgb.root{cursor:default;min-width:46%;border-color:var(--ink)}
 .lgb.empty{cursor:default;color:var(--muted);border-style:dashed}
 .lgr{font-size:10.5px;color:var(--muted);font-weight:800}.lgr b{color:var(--green-dd);margin-left:4px}
-.lgn{font-size:12px;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-all;line-height:1.25}
+.lgn{font-size:12px;max-width:100%;word-break:keep-all;overflow-wrap:anywhere;line-height:1.25}
 .lgsum .btn.on{background:var(--green);color:#fff;border-color:var(--green-d)}.lgs{font-size:10.5px;color:var(--muted);font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lgpin{font-size:10px;font-weight:800;color:var(--pink)}
 .tblwrap{overflow-x:auto}.ictbl{width:100%;border-collapse:collapse;font-size:12.5px}.ictbl th{font-size:11px;color:var(--muted);text-align:left;font-weight:800;padding:4px 6px;border-bottom:2px solid var(--line)}
@@ -215,6 +216,10 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .tmem{display:grid;gap:8px}
 .tmem .mrow{display:grid;gap:6px;border:2px solid var(--line);border-radius:14px;padding:8px 10px;background:#fff}
 .tmem .mhead{display:flex;align-items:center;gap:8px;min-width:0}
+.tmem .mhead .pick{gap:8px;padding:6px 8px}.tmem .mhead .pick>span:not(.pxm):not(.chg){min-width:0}
+.tmem .mhead .pick .t,.tmem .mhead .pick .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pick .chg.sm{padding:2px 8px}
+.tmem .mfoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tmem .mfoot [data-tdel]{margin-left:auto}
 .tmem .mhead .no{font-weight:800;color:var(--muted);font-size:12px;white-space:nowrap}
 .tmem .mhead .nm{font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .tmem .mhead .nm small{display:block;font-size:10.5px;color:var(--muted);font-weight:700}
@@ -1614,7 +1619,7 @@ function renderTeam(){
   st.team=Array.isArray(st.team)?st.team.slice(0,2):[];
   const ch=chara();
   const rowMain=`<div class="mrow"><div class="mhead"><span class="no">1人目</span><span class="nm"><small>${esc(ch?ch.title:"")}</small>${esc(ch?ch.name:"（ウマ娘タブで選択）")}</span><span class="hint">${esc(st.style)}</span></div><span class="hint">1人目はプランの設定のまま（ウマ娘タブで変更）</span></div>`;
-  const rows=st.team.map((m,i)=>{const c=D.charas.find(x=>x.id===m.charaId);return`<div class="mrow"><div class="mhead"><span class="no">${i+2}人目</span><button class="pick" type="button" data-tpick="${i}" style="flex:1;min-width:0">${c?pxChara(c,true):""}<span><span class="t">${esc(c?c.title:"")}</span><span class="n${c?" pxn":""}">${esc(c?c.name:"ウマ娘を選ぶ")}</span></span><span class="chg">変更 ›</span></button><button class="btn sm" type="button" data-tdel="${i}" aria-label="外す">✕</button></div><div class="seg" data-tseg="${i}"></div></div>`}).join("");
+  const rows=st.team.map((m,i)=>{const c=D.charas.find(x=>x.id===m.charaId);return`<div class="mrow"><div class="mhead"><span class="no">${i+2}人目</span><button class="pick" type="button" data-tpick="${i}" style="flex:1;min-width:0">${c?pxChara(c,true):""}<span><span class="t">${esc(c?c.title:"")}</span><span class="n${c?" pxn":""}">${esc(c?c.name:"ウマ娘を選ぶ")}</span></span><span class="chg sm" aria-hidden="true">›</span></button></div><div class="mfoot"><div class="seg" data-tseg="${i}"></div><button class="btn sm" type="button" data-tdel="${i}" aria-label="${i+2}人目を外す">✕ 外す</button></div></div>`}).join("");
   $("#teamMembers").innerHTML=rowMain+rows;
   st.team.forEach((m,i)=>seg($(`[data-tseg="${i}"]`),STYLES,m.style,v=>{m.style=v;persist()}));
   $("#teamMembers").querySelectorAll("[data-tpick]").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.tpick;
@@ -1883,17 +1888,19 @@ function renderSheet(p){
   const lgP=LG.plans[lgAlt]||null;
   lastExport.lg=lgP;
   const pinLabel={parent:"親に固定",grand:"祖父母に固定"};
+  // 長い名前（7文字以上）は真ん中で1回だけ改行できるようにする（「シンボリ／クリスエス」のように半分ずつ）
+  const lgName=n=>{const a=[...n];if(a.length<7)return esc(n);const h=Math.ceil(a.length/2);return esc(a.slice(0,h).join(""))+"<wbr>"+esc(a.slice(h).join(""))};
   const lgBox=(k,role,pts)=>{const u=lgP&&lgP.a[k];
     if(!u)return`<div class="lgb empty"><span class="lgr">${role}</span><span class="lgn">空き</span></div>`;
     const pin=u.evo?"parent":st.lineage.pins[u.s.id];
     return`<button type="button" class="lgb${k[0]==="p"?" par":""}${pin?" pinned":""}" data-lgpin="${esc(u.s.id)}"${u.evo?' data-lgevo="1"':""}>
-      <span class="lgr">${role}${pts!=null?`<b>+${pts}</b>`:""}</span>${pxChara(u.x,true)}<span class="lgn pxn">${esc(u.x.name)}</span><span class="lgs">${esc(u.s.name)}</span>
+      <span class="lgr">${role}${pts!=null?`<b>+${pts}</b>`:""}</span>${pxChara(u.x,true)}<span class="lgn pxn">${lgName(u.x.name)}</span><span class="lgs">${esc(u.s.name)}</span>
       ${pin?`<span class="lgpin">${u.evo?"継承進化のため親に固定":pinLabel[pin]}</span>`:""}</button>`};
   const lgHtml=!D.relation?"":!m.sel.length?`<p class="hint" style="margin-top:8px">継承固有を選ぶと、親・祖父母の組み方（相性が高くなる並べ方）を出します。</p>`:!lgP?`<p class="hint" style="margin-top:8px">指定の条件では並べられませんでした。固定を外してみてください。</p>`:`<details class="lgwrap" id="lgDet"${LS.get("umaplan2.lgOpen",true)?" open":""}>
     <summary class="lbl">継承の組み方（相性 ${relMark(lgP.total)} ${lgP.total}pt）</summary>
     <div class="lgsum"><span class="lgmk">${relMark(lgP.total)}</span><span>相性 <b>${lgP.total}</b>pt</span>${LG.plans.length>1?`<span class="btnrow" style="margin-left:auto">${LG.plans.map((q,i)=>`<button type="button" class="btn sm${i===lgAlt?" on":""}" data-lgalt="${i}">${i===0?"おすすめ":"別案"+i}（${q.total}）</button>`).join("")}</span>`:""}</div>
     <div class="ltree">
-      <div class="lroot"><div class="lgb root">${pxChara(lgCh,true)}<span class="lgn pxn">${esc(lgCh.name)}</span><span class="lgs">育成ウマ娘</span></div></div>
+      <div class="lroot"><div class="lgb root">${pxChara(lgCh,true)}<span class="lgn pxn">${lgName(lgCh.name)}</span><span class="lgs">育成ウマ娘</span></div></div>
       <div class="lbr wide"><span>親どうし +${lgP.parts.pp}</span></div>
       <div class="lbranch">${["1","2"].map(n=>`<div class="lside">${lgBox("p"+n,"親"+n,lgP.parts["p"+n])}<div class="lbr"></div><div class="lgrand">${lgBox("g"+n+"1","祖"+n+"-1",lgP.parts["g"+n+"1"])}${lgBox("g"+n+"2","祖"+n+"-2",lgP.parts["g"+n+"2"])}</div></div>`).join("")}</div>
     </div>
