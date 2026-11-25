@@ -160,6 +160,11 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .lgn{font-size:12px;max-width:100%;word-break:keep-all;overflow-wrap:anywhere;line-height:1.25}
 .lgsum .btn.on{background:var(--green);color:#fff;border-color:var(--green-d)}.lgs{font-size:10.5px;color:var(--muted);font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lgpin{font-size:10px;font-weight:800;color:var(--pink)}
+.pdb-chara{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.pdb-chara{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.pdb-chara .btn{display:flex;align-items:center;gap:6px;justify-content:flex-start;text-align:left;min-width:0;width:auto;margin:0;padding:6px 8px;text-decoration:none;border-radius:12px}
+.pdb-chara .btn *{text-decoration:none}.pdbn{word-break:keep-all;overflow-wrap:anywhere;font-weight:800}
+.pdb-chara .btn>span:last-child{min-width:0;display:grid;font-size:12.5px;line-height:1.25}.pdb-chara small{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tblwrap{overflow-x:auto}.ictbl{width:100%;border-collapse:collapse;font-size:12.5px}.ictbl th{font-size:11px;color:var(--muted);text-align:left;font-weight:800;padding:4px 6px;border-bottom:2px solid var(--line)}
 .ictbl td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top}.ictbl td small{display:block;color:var(--muted);font-weight:600}
 .ictbl td.num{font-weight:800;white-space:nowrap}.ictbl tr.icbest td{background:var(--green-soft)}
@@ -1191,26 +1196,34 @@ const PUREDB_BASE={gameServerCode:"japan",userIds:[],partnerCardIds:[],supportCa
 // searchType：0＝全体、1＝代表、2＝継承元（ウマ娘DBの検索画面の切り替えと同じ番号）。
 // 「代表と継承元の両方」は、同じ因子を代表（1）と継承元（2）で1つずつ入れて検索する
 const PDB_TYPES=[["0","全体"],["1","代表"],["2","継承元"],["3","代表と継承元の両方"]];
-function pureDbUrl(gids){const t=+(st.pdbType||0);const types=t===3?[1,2]:[t];
-  const q=Object.assign({},PUREDB_BASE,{commonSkillFactors:gids.flatMap(g=>types.map(ty=>({groupId:g,count:1,searchType:ty,enabled:true})))});
+// 長い名前（7文字以上）は真ん中で1回だけ改行できるようにする（keep-all の要素の中で使う）
+const midBreak=n=>{const a=[...n];if(a.length<7)return esc(n);const h=Math.ceil(a.length/2);return esc(a.slice(0,h).join(""))+"<wbr>"+esc(a.slice(h).join(""))};
+// cardId：代表ウマ娘（衣装のID、例 114101）で絞り込むとき
+function pureDbUrl(gids,cardId){const t=+(st.pdbType||0);const types=t===3?[1,2]:[t];
+  const q=Object.assign({},PUREDB_BASE,{partnerCardIds:cardId?[+cardId]:[],commonSkillFactors:gids.flatMap(g=>types.map(ty=>({groupId:g,count:1,searchType:ty,enabled:true})))});
   return "https://uma.pure-db.com/ja-jp/search?searchInfo="+encodeURIComponent(btoa(JSON.stringify(q)))}
-function pureDbBox(fac){
+function pureDbBox(fac,sel){
   const list=[...fac.top,...fac.high].filter(x=>x.s.groupId);
   // レース中に発動するスキルの因子は、シナリオ由来のもの（レースの真髄など）も含めて、すべて白因子（共通）で探せる
   const ok=list;
-  if(!ok.length)return"";
+  // 継承固有で選んだウマ娘（衣装）：代表ウマ娘として絞り込むボタンを出す
+  const charas=[];const seenC=new Set();for(const u of sel||[]){if(!seenC.has(u.x.id)){seenC.add(u.x.id);charas.push(u)}}
+  if(!ok.length&&!charas.length)return"";
   const def=new Set(ok.filter(x=>fac.top.includes(x)).slice(0,3).map(x=>x.s.groupId));
   return `<details class="pdb"><summary>ウマ娘DBでレンタルの因子を探す</summary>
     <p class="hint">チェックした因子を白因子（共通）に入れた状態で、ウマ娘DB（uma.pure-db.com）のフレンド検索を開きます。すべてを満たす人だけが出るので、2〜3個から試すのがおすすめです。</p>
     <div class="pdb-type"><span class="hint">因子の場所：</span>${PDB_TYPES.map(([v,l])=>`<label><input type="radio" name="pdbType" value="${v}"${String(st.pdbType||0)===v?" checked":""}> ${l}</label>`).join("")}</div>
     <div class="pdb-list">${ok.map(x=>`<label><input type="checkbox" data-pdb="${x.s.groupId}"${def.has(x.s.groupId)?" checked":""}> ${esc(facName(x))}</label>`).join("")}</div>
-    <div class="btnrow"><a class="btn primary grow" id="pdbGo" href="${pureDbUrl([...def])}" target="_blank" rel="noopener">ウマ娘DBで検索する（${def.size}件）</a></div></details>`;
+    <div class="btnrow"><a class="btn primary grow" id="pdbGo" href="${pureDbUrl([...def])}" target="_blank" rel="noopener">ウマ娘DBで検索する（${def.size}件）</a></div>
+    ${charas.length?`<p class="lbl" style="margin:10px 0 4px">継承固有で選んだウマ娘で探す</p><p class="hint">代表ウマ娘をそのウマ娘（同じ衣装）に絞り、上でチェックした白因子と一緒に検索します。</p>
+    <div class="pdb-chara">${charas.map(u=>`<a class="btn sm" data-pdbc="${esc(u.x.id)}" href="${pureDbUrl([...def],u.x.id)}" target="_blank" rel="noopener">${pxChara(u.x,true)}<span><b class="pdbn">${midBreak(u.x.name)}</b><small>${esc(u.s.name)}</small></span></a>`).join("")}</div>`:""}</details>`;
 }
 document.addEventListener("change",e=>{if(!e.target.matches)return;
   if(e.target.matches('input[name="pdbType"]')){st.pdbType=+e.target.value;persist()}
   else if(!e.target.matches("[data-pdb]"))return;
   const box=e.target.closest(".pdb");if(!box)return;
-  const g=[...box.querySelectorAll("[data-pdb]:checked")].map(i=>+i.dataset.pdb);const a=box.querySelector("#pdbGo");a.href=pureDbUrl(g);a.textContent=`ウマ娘DBで検索する（${g.length}件）`});
+  const g=[...box.querySelectorAll("[data-pdb]:checked")].map(i=>+i.dataset.pdb);const a=box.querySelector("#pdbGo");a.href=pureDbUrl(g);a.textContent=`ウマ娘DBで検索する（${g.length}件）`;
+  box.querySelectorAll("[data-pdbc]").forEach(b=>b.href=pureDbUrl(g,b.dataset.pdbc))});
 // 因子周回デッキの枠i（フレンド枠を含む1〜6枚目）に入れるおすすめ：ほかの枠ですでに拾えるヒントを除いて、因子化したいスキルのヒントを多く足せるカード（最大10枚）
 function farmRec(i){
   if(!lastM||!lastM.fac)return null;
@@ -1891,7 +1904,7 @@ function renderSheet(p){
       <p class="hint">デッキ案に入らなかったカードのうち、因子化したいスキルのヒントを2種類以上持つものです（入れ替え候補）。</p>
       <div class="deck farm">${farm.others.map(c=>`<div class="slot"><div class="top"><span class="type" style="background:${typeColor(c.sp.type)}">${esc(c.sp.rarity)} ${esc(c.sp.type)}</span><span class="hint" style="margin-left:auto">${c.g.size}種類</span></div><div><span class="t" style="font-size:11.5px;color:var(--muted);display:block">${esc(c.sp.title)}</span><b>${esc(c.sp.name)}</b></div><div class="chips">${[...c.g].sort((a,b)=>farm.w(b)-farm.w(a)).map(g=>`<span class="chip${farm.w(g)===3?" gold":""}">${esc(farm.name(g))}</span>`).join("")}</div></div>`).join("")}</div>
     </details>`:""}`:'<p class="hint">因子化したいスキルがないため、デッキ案はありません。</p>';
-  const facHtml=`<p class="hint">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントでは取れず、白因子で継承したい白スキルです（数字は期待バ身。手持ちのスキルと合わせて走らせたときに増える分）。${S.passSpdOnly?"スピード以外のステータスを上げるパッシブは除いています。":""}段階は、このプランでいちばん伸びるスキル（${m.fac.best.toFixed(2)}バ身）を基準に、70%以上（${(m.fac.best*0.7).toFixed(2)}バ身以上）＝超優先（最大15件）、40%以上（${(m.fac.best*0.4).toFixed(2)}バ身以上）＝優先（最大20件）、それ未満で0.1バ身以上＝通常（最大${facNormCap()}件、設定で変更可）。持久力温存の回避に必要な回復は超優先です。「イベ」の印は、育成ウマ娘の育成イベントでもヒントが出る可能性があるスキルです（イベントが必ず起きるとは限らないため、候補には残しています。印に触れると、イベント名と選択肢が出ます）。</p>${pinBar(L)}${covLine(fcov)}${facRow("超優先","ft-top",m.fac.top,15)}${facRow("優先","ft-high",m.fac.high,20)}${facRow("通常","ft-norm",m.fac.norm,facNormCap())}${pureDbBox(m.fac)}`;
+  const facHtml=`<p class="hint">デッキ・固有・初期/覚醒スキル・シナリオ・選んだイベントでは取れず、白因子で継承したい白スキルです（数字は期待バ身。手持ちのスキルと合わせて走らせたときに増える分）。${S.passSpdOnly?"スピード以外のステータスを上げるパッシブは除いています。":""}段階は、このプランでいちばん伸びるスキル（${m.fac.best.toFixed(2)}バ身）を基準に、70%以上（${(m.fac.best*0.7).toFixed(2)}バ身以上）＝超優先（最大15件）、40%以上（${(m.fac.best*0.4).toFixed(2)}バ身以上）＝優先（最大20件）、それ未満で0.1バ身以上＝通常（最大${facNormCap()}件、設定で変更可）。持久力温存の回避に必要な回復は超優先です。「イベ」の印は、育成ウマ娘の育成イベントでもヒントが出る可能性があるスキルです（イベントが必ず起きるとは限らないため、候補には残しています。印に触れると、イベント名と選択肢が出ます）。</p>${pinBar(L)}${covLine(fcov)}${facRow("超優先","ft-top",m.fac.top,15)}${facRow("優先","ft-high",m.fac.high,20)}${facRow("通常","ft-norm",m.fac.norm,facNormCap())}${pureDbBox(m.fac,m.sel)}`;
   const dd=new Date(),ds=`${dd.getFullYear()}/${dd.getMonth()+1}/${dd.getDate()}`;
   const stat=[["spd","スピード"],["sta","スタミナ"],["pow","パワー"],["gut","根性"],["wit","賢さ"]];
   const full=st.inherit.length>=6;
@@ -1907,7 +1920,7 @@ function renderSheet(p){
   lastExport.lg=lgP;
   const pinLabel={parent:"親に固定",grand:"祖父母に固定"};
   // 長い名前（7文字以上）は真ん中で1回だけ改行できるようにする（「シンボリ／クリスエス」のように半分ずつ）
-  const lgName=n=>{const a=[...n];if(a.length<7)return esc(n);const h=Math.ceil(a.length/2);return esc(a.slice(0,h).join(""))+"<wbr>"+esc(a.slice(h).join(""))};
+  const lgName=midBreak;
   const lgBox=(k,role,pts)=>{const u=lgP&&lgP.a[k];
     if(!u)return`<div class="lgb empty"><span class="lgr">${role}</span><span class="lgn">空き</span></div>`;
     const pin=u.evo?"parent":st.lineage.pins[u.s.id];
@@ -2160,7 +2173,7 @@ function renderAll(){renderRace();renderUma();renderDeck();renderSaved()}
 /* ---------- 起動 ---------- */
 (async()=>{
   try{
-    const res=await fetch("data/planner-data.json?v=189e666783",{cache:"no-cache"});if(!res.ok)throw new Error("HTTP "+res.status);
+    const res=await fetch("data/planner-data.json?v=d7476f97a1",{cache:"no-cache"});if(!res.ok)throw new Error("HTTP "+res.status);
     D=await res.json();
     NON_INH=new Set(((D.rules&&D.rules.nonInheritable)||[]).map(x=>String(x.id)));
     SCN=((D.scenarios&&D.scenarios.scenarios)||[]);
