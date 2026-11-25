@@ -138,6 +138,8 @@ select:focus,input:focus{border-color:var(--green);outline:none}
 .pick>.pxc,.opt>.pxc{flex:0 0 auto!important;width:40px;min-width:0}.pick>.pxc.sm,.opt>.pxc.sm{width:32px}
 .pick>.pxm,.opt>.pxm{flex:0 0 auto!important;width:38px}.pick>.pxm.sm,.opt>.pxm.sm{width:30px}
 .pxm{display:block!important;text-align:center;line-height:42px}.pxm.sm{line-height:34px}
+.lgwrap>summary{margin:10px 0 6px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}.lgwrap>summary::-webkit-details-marker{display:none}
+.lgwrap>summary::before{content:"▶";font-size:10px;transition:transform .15s}.lgwrap[open]>summary::before{transform:rotate(90deg)}
 .lgsum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}.lgmk{font-size:22px;font-weight:800;color:var(--green-dd)}
 .ltree{display:grid;gap:0;margin:4px 0 8px}
 .lbranch{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -1884,8 +1886,8 @@ function renderSheet(p){
     return`<button type="button" class="lgb${k[0]==="p"?" par":""}${pin?" pinned":""}" data-lgpin="${esc(u.s.id)}"${u.evo?' data-lgevo="1"':""}>
       <span class="lgr">${role}${pts!=null?`<b>+${pts}</b>`:""}</span>${pxChara(u.x,true)}<span class="lgn pxn">${esc(u.x.name)}</span><span class="lgs">${esc(u.s.name)}</span>
       ${pin?`<span class="lgpin">${u.evo?"継承進化のため親に固定":pinLabel[pin]}</span>`:""}</button>`};
-  const lgHtml=!D.relation?"":!m.sel.length?`<p class="hint" style="margin-top:8px">継承固有を選ぶと、親・祖父母の組み方（相性が高くなる並べ方）を出します。</p>`:!lgP?`<p class="hint" style="margin-top:8px">指定の条件では並べられませんでした。固定を外してみてください。</p>`:`<div class="lgwrap">
-    <p class="lbl" style="margin:10px 0 4px">継承の組み方（相性）</p>
+  const lgHtml=!D.relation?"":!m.sel.length?`<p class="hint" style="margin-top:8px">継承固有を選ぶと、親・祖父母の組み方（相性が高くなる並べ方）を出します。</p>`:!lgP?`<p class="hint" style="margin-top:8px">指定の条件では並べられませんでした。固定を外してみてください。</p>`:`<details class="lgwrap" id="lgDet"${LS.get("umaplan2.lgOpen",true)?" open":""}>
+    <summary class="lbl">継承の組み方（相性 ${relMark(lgP.total)} ${lgP.total}pt）</summary>
     <div class="lgsum"><span class="lgmk">${relMark(lgP.total)}</span><span>相性 <b>${lgP.total}</b>pt</span>${LG.plans.length>1?`<span class="btnrow" style="margin-left:auto">${LG.plans.map((q,i)=>`<button type="button" class="btn sm${i===lgAlt?" on":""}" data-lgalt="${i}">${i===0?"おすすめ":"別案"+i}（${q.total}）</button>`).join("")}</span>`:""}</div>
     <div class="ltree">
       <div class="lroot"><div class="lgb root">${pxChara(lgCh,true)}<span class="lgn pxn">${esc(lgCh.name)}</span><span class="lgs">育成ウマ娘</span></div></div>
@@ -1893,7 +1895,7 @@ function renderSheet(p){
       <div class="lbranch">${["1","2"].map(n=>`<div class="lside">${lgBox("p"+n,"親"+n,lgP.parts["p"+n])}<div class="lbr"></div><div class="lgrand">${lgBox("g"+n+"1","祖"+n+"-1",lgP.parts["g"+n+"1"])}${lgBox("g"+n+"2","祖"+n+"-2",lgP.parts["g"+n+"2"])}</div></div>`).join("")}</div>
     </div>
     <p class="hint">上から育成ウマ娘・親・祖父母の順です。数字は相性の点（親：育成ウマ娘との相性、祖父母：育成ウマ娘・親との3人の相性、親どうし：親2人の相性）。目安は◎151pt以上・○51pt以上ですが、ここではG1の勝ちボーナスを入れていないので、実際はこれより高くなります。人をタップすると「おまかせ→親に固定→祖父母に固定」と切り替わり、固定を守ったまま並べ直します。${LG.forced.length>2?"継承進化する継承固有が3件以上あるため、すべては親にできません。":""}相性データ：<a href="${esc(D.relation.url)}" target="_blank" rel="noopener">${esc(D.relation.source)}</a>。</p>
-  </div>`;
+  </details>`;
   // 継承固有の比較
   st.inhCmp=(st.inhCmp||[]).filter(id=>p.inhAll.some(u=>u.s.id===id)).slice(0,3);
   const ic=inhCompare(p,d,st.inhCmp);
@@ -1964,6 +1966,7 @@ function renderSheet(p){
   $("#sheet").querySelectorAll("[data-evk]").forEach(b=>b.addEventListener("click",()=>{st.evChoice[b.dataset.evk]=+b.dataset.evi;renderSheet(p)}));
   const r1=$("#inhRec");if(r1)r1.addEventListener("click",()=>{st.inherit=m.recIds.slice(0,6);renderSheet(p)});
   const r2=$("#inhClear");if(r2)r2.addEventListener("click",()=>{st.inherit=[];renderSheet(p)});
+  const lgD=$("#lgDet");if(lgD)lgD.addEventListener("toggle",()=>LS.set("umaplan2.lgOpen",lgD.open));
   $("#sheet").querySelectorAll("[data-lgpin]").forEach(b=>b.addEventListener("click",()=>{
     if(b.dataset.lgevo){toast("継承進化する継承固有は、親にしないと進化しないため固定です");return}
     const id=b.dataset.lgpin,cur=st.lineage.pins[id]||null,next=cur==null?"parent":cur==="parent"?"grand":null;
