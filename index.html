@@ -2160,7 +2160,7 @@ function renderAll(){renderRace();renderUma();renderDeck();renderSaved()}
 /* ---------- 起動 ---------- */
 (async()=>{
   try{
-    const res=await fetch("data/planner-data.json?v=189e666783");if(!res.ok)throw new Error("HTTP "+res.status);
+    const res=await fetch("data/planner-data.json?v=189e666783",{cache:"no-cache"});if(!res.ok)throw new Error("HTTP "+res.status);
     D=await res.json();
     NON_INH=new Set(((D.rules&&D.rules.nonInheritable)||[]).map(x=>String(x.id)));
     SCN=((D.scenarios&&D.scenarios.scenarios)||[]);
